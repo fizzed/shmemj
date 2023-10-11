@@ -4,27 +4,24 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public class SharedMemory implements Closeable {
+public class SharedCondition {
 
     /** pointer to the native object */
     private long ptr;
+    private long size;
 
-    public SharedMemory() {
+    public SharedCondition() {
         this.ptr = 0;
+        this.size = 0;
     }
 
-    public native String getOsId();
+    public long getSize() {
+        return this.size;
+    }
 
-    public native long getSize();
+    //public native void waitMillis(long millis);
 
-    public native ByteBuffer getByteBuffer();
-
-
-
-    public native SharedCondition newCondition(long offset);
-
-
-    private native void destroy();
+    /*private native void destroy();
 
     @Override
     public void close() throws IOException {
@@ -34,12 +31,13 @@ public class SharedMemory implements Closeable {
     @Override
     protected void finalize() throws Throwable {
         this.destroy();
-    }
+    }*/
 
     @Override
     public String toString() {
-        return "SharedMemory{" +
+        return "SharedCondition{" +
             "ptr=" + ptr +
+            ", size=" + size +
             '}';
     }
 

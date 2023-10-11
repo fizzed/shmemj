@@ -23,7 +23,7 @@ public class SharedMemoryDemo {
 
         log.debug("Loaded library!");
 
-        final SharedMemory shmem = new SharedMemoryFactory()
+        SharedMemory shmem = new SharedMemoryFactory()
             .setSize(2048L)
             .create();
 
@@ -48,6 +48,11 @@ public class SharedMemoryDemo {
         /*String r = SharedMemory.hello("yo");
 
         log.debug("r was {}", r);*/
+
+        shmem.close();
+
+        shmem = null;
+        System.gc();
 
         Thread.sleep(600000000L);
     }

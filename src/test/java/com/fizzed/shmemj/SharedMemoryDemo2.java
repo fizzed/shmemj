@@ -24,7 +24,7 @@ public class SharedMemoryDemo2 {
         log.debug("Loaded library!");
 
         final SharedMemory shmem = new SharedMemoryFactory()
-            .setOsId("/shmem_E52D65010039CBC9")
+            .setOsId("/shmem_190754AB6F13382B")
             .open();
 
         log.debug("Shared memory: {}", shmem);

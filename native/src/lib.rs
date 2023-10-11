@@ -1,10 +1,14 @@
 use std::mem::ManuallyDrop;
 use jni::JNIEnv;
-use jni::objects::{JClass, JObject, JString, JValue};
-use jni::signature::JavaType;
-use jni::sys::{_jobject, jstring, jlong};
+use jni::objects::{JObject, JString, JValue};
+use jni::sys::{jstring, jlong};
 use jni::sys::jobject;
+use raw_sync::events::{Event, EventImpl, EventInit};
 use shared_memory::{Shmem, ShmemConf};
+
+//
+// SharedMemoryFactory native methods
+//
 
 #[no_mangle]
 pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_create<'local>(
@@ -52,12 +56,12 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_open<'local>(
 }
 
 fn create_shmem_object(env: &mut JNIEnv, shmem: Shmem) -> jobject {
-    let shmem_boxed = ManuallyDrop::new(shmem);
+    let shmem_manually_dropped = ManuallyDrop::new(shmem);
 
     // println!("create(): shmem_boxed ptr={:p}", &shmem_boxed);
 
     // this moves it to the heap, but then leaks it back so we can keep it around
-    let shmem = Box::leak(Box::new(shmem_boxed));
+    let shmem = Box::leak(Box::new(shmem_manually_dropped));
 
     println!("create(): shmem ptr={:p}, osid={}, byteptr={:p}", shmem, shmem.get_os_id(), shmem.as_ptr());
 
@@ -79,7 +83,11 @@ fn create_shmem_object(env: &mut JNIEnv, shmem: Shmem) -> jobject {
     return shmem_jobj.into_raw();
 }
 
-fn get_shmem_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> &'local ManuallyDrop<Shmem> {
+//
+// SharedMemory native methods
+//
+
+fn get_shmem_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> &'local mut ManuallyDrop<Shmem> {
     // the "ptr" field on the SharedMemory class instance is the address of the companion object in rust
     let ptr = env.get_field(&target, "ptr", "J")
         .unwrap()
@@ -88,7 +96,7 @@ fn get_shmem_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> &'local Ma
 
     // NOTE: ptr should NOT be zero
 
-    let shmem = unsafe { &*(ptr as *const ManuallyDrop<Shmem>) };
+    let shmem = unsafe { &mut *(ptr as *mut ManuallyDrop<Shmem>) };
 
     return shmem;
 }
@@ -127,4 +135,70 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getByteBuffer<'local>
     let byte_buffer = unsafe { env.new_direct_byte_buffer(shmem.as_ptr(), shmem.len()).unwrap() };
 
     return byte_buffer.into_raw();
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_destroy<'local>(
+        mut env: JNIEnv<'local>, target: JObject<'local>) {
+
+    // do we need to destroy this?
+    let ptr = env.get_field(&target, "ptr", "J")
+        .unwrap()
+        .j()
+        .unwrap();
+
+    if ptr == 0 {
+        //println!("Shmem was already dropped");
+        return;     // nothing to do
+    }
+
+    let shmem = get_shmem_co_object(&mut env, &target);
+
+    unsafe {
+        //println!("Dropping shmem...");
+        ManuallyDrop::drop(shmem);
+    }
+
+    // clear out pointer
+    env.set_field(&target, "ptr", "J", JValue::Long(0))
+        .unwrap();
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_newCondition<'local>(
+        mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong) -> jobject {
+
+    let shmem = get_shmem_co_object(&mut env, &target);
+
+    //
+    // create an "Event" that we'll associate with a SharedCondition
+    //
+    //
+
+    let mem_ptr = unsafe { shmem.as_ptr().offset(offset as isize) };
+
+    let (event_boxed, event_size) = unsafe { Event::new(mem_ptr, true).unwrap() };
+
+    // since its already boxed, we'll leak it out, then make it manually dropped
+    let event = Box::leak(event_boxed);
+
+    println!("newCondition(): event ptr={:p}, size={}", event, event_size);
+
+    let shared_condition_class = env.find_class("com/fizzed/shmemj/SharedCondition").unwrap();
+
+    let shcond_obj = env.new_object(&shared_condition_class, "()V", &[])
+        .unwrap();
+
+    let ptr = event as * dyn EventImpl as usize;
+
+    println!("newCondition(): ptr was {}", ptr);
+
+    // primitive type of a long is a J
+    env.set_field(&shcond_obj, "ptr", "J", JValue::Long(ptr as jlong))
+        .unwrap();
+
+    env.set_field(&shcond_obj, "size", "J", JValue::Long(event_size as jlong))
+        .unwrap();
+
+    return shcond_obj.into_raw();
 }
