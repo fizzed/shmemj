@@ -85,14 +85,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8eaf4bc02d17cbdd7ff4c7438cafcdf7fb9a4613313ad11b4f8fefe7d3fa0130"
 
 [[package]]
-name = "jsiamese"
-version = "0.1.0"
-dependencies = [
- "jni",
- "shared_memory",
-]
-
-[[package]]
 name = "libc"
 version = "0.2.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -206,6 +198,14 @@ dependencies = [
  "nix",
  "rand",
  "win-sys",
+]
+
+[[package]]
+name = "shmemj"
+version = "0.1.0"
+dependencies = [
+ "jni",
+ "shared_memory",
 ]
 
 [[package]]

@@ -1,21 +1,19 @@
-package com.fizzed.siamese;
+package com.fizzed.shmemj;
 
-import com.fizzed.jne.JNE;
 import com.fizzed.jne.Options;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-public class SharedMemoryDemo {
-    static private final Logger log = LoggerFactory.getLogger(SharedMemoryDemo.class);
+public class SharedMemoryDemo2 {
+    static private final Logger log = LoggerFactory.getLogger(SharedMemoryDemo2.class);
 
     static public void main(String[] args) throws Exception {
         Options options = new Options();
-        String libraryName = options.createLibraryName("jsiamese", options.getOperatingSystem(), null, null, null);
+        String libraryName = options.createLibraryName("shmemj", options.getOperatingSystem(), null, null, null);
         Path libFile = Paths.get("native/target/debug", libraryName);
         String libPath = libFile.toAbsolutePath().toString();
 
@@ -26,8 +24,8 @@ public class SharedMemoryDemo {
         log.debug("Loaded library!");
 
         final SharedMemory shmem = new SharedMemoryFactory()
-            .setSize(4096L)
-            .create();
+            .setOsId("/shmem_E52D65010039CBC9")
+            .open();
 
         log.debug("Shared memory: {}", shmem);
 
@@ -35,23 +33,9 @@ public class SharedMemoryDemo {
         log.debug("Size: {}", shmem.getSize());
 
         final ByteBuffer buf = shmem.getByteBuffer();
-        buf.putDouble(5.4d);
-        buf.flip();
 
         log.debug("Buf: d={}", buf.getDouble());
         log.debug("Buf: isDirect={}, class={}", buf.isDirect(), buf.getClass());
-
-
-        final ByteBuffer buf2 = shmem.getByteBuffer();
-
-        log.debug("Buf2: d={}", buf2.getDouble());
-        log.debug("Buf2: d={}", buf2.getDouble());
-
-        /*String r = SharedMemory.hello("yo");
-
-        log.debug("r was {}", r);*/
-
-        Thread.sleep(600000000L);
     }
 
 }

@@ -1,4 +1,4 @@
-package com.fizzed.siamese;
+package com.fizzed.shmemj;
 
 import java.nio.ByteBuffer;
 

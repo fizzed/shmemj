@@ -7,7 +7,7 @@ use jni::sys::jobject;
 use shared_memory::{Shmem, ShmemConf};
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_siamese_SharedMemoryFactory_create<'local>(
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_create<'local>(
         mut env: JNIEnv<'local>, target: JObject<'local>) -> jobject {
 
     let size = env.get_field(&target, "size", "J")
@@ -24,7 +24,7 @@ pub extern "system" fn Java_com_fizzed_siamese_SharedMemoryFactory_create<'local
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_siamese_SharedMemoryFactory_open<'local>(
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_open<'local>(
     mut env: JNIEnv<'local>, target: JObject<'local>) -> jobject {
 
     let size = env.get_field(&target, "size", "J")
@@ -61,7 +61,7 @@ fn create_shmem_object(env: &mut JNIEnv, shmem: Shmem) -> jobject {
 
     println!("create(): shmem ptr={:p}, osid={}, byteptr={:p}", shmem, shmem.get_os_id(), shmem.as_ptr());
 
-    let shared_memory_class = env.find_class("com/fizzed/siamese/SharedMemory").unwrap();
+    let shared_memory_class = env.find_class("com/fizzed/shmemj/SharedMemory").unwrap();
 
     //println!("Found shmem class: {:?}", shared_memory_class);
 
@@ -94,7 +94,7 @@ fn get_shmem_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> &'local Ma
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_siamese_SharedMemory_getOsId<'local>(
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getOsId<'local>(
         mut env: JNIEnv<'local>, target: JObject<'local>) -> jstring {
 
     let shmem = get_shmem_co_object(&mut env, &target);
@@ -108,7 +108,7 @@ pub extern "system" fn Java_com_fizzed_siamese_SharedMemory_getOsId<'local>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_siamese_SharedMemory_getSize<'local>(
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getSize<'local>(
         mut env: JNIEnv<'local>, target: JObject<'local>) -> jlong {
 
     let shmem = get_shmem_co_object(&mut env, &target);
@@ -119,7 +119,7 @@ pub extern "system" fn Java_com_fizzed_siamese_SharedMemory_getSize<'local>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_siamese_SharedMemory_getByteBuffer<'local>(
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getByteBuffer<'local>(
         mut env: JNIEnv<'local>, target: JObject<'local>) -> jobject {
 
     let shmem = get_shmem_co_object(&mut env, &target);

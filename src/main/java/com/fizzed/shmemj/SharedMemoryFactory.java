@@ -1,4 +1,4 @@
-package com.fizzed.siamese;
+package com.fizzed.shmemj;
 
 public class SharedMemoryFactory {
 
