@@ -1,6 +1,3 @@
-use std::any::Any;
-use std::error::Error;
-use std::mem::ManuallyDrop;
 use std::time::Duration;
 use jni::JNIEnv;
 use jni::objects::{JObject, JString, JValue};
@@ -14,7 +11,7 @@ fn handle_shmem_error<T>(env: &mut JNIEnv, result: &Result<T,ShmemError>) -> boo
     if result.is_err() {
         let error = result.as_ref().err().unwrap();
         let error_message = format!("{:?}: {}", error, error);
-        env.throw(error_message);
+        env.throw(error_message).unwrap();
         return true;
     } else {
         return false;
@@ -308,7 +305,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_destroy<'local>(mu
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_awaitMillis<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, timeoutMillis: jlong) -> jboolean {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_awaitMillis<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, timeout_millis: jlong) -> jboolean {
 
     let event_result = get_event_co_object(&mut env, &target);
 
@@ -321,16 +318,16 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_awaitMillis<'local
 
     // println!("awaitMillis(): event ptr={:p}", event);
 
-    if timeoutMillis == 0 {
+    if timeout_millis == 0 {
         // this cannot timeout so we can ignore the result
         event.wait(Timeout::Infinite).unwrap();
         return JNI_TRUE;
     } else {
         // a failed result is returned if it timed out
-        let result = event.wait(Timeout::Val(Duration::from_millis(timeoutMillis as u64)));
+        let result = event.wait(Timeout::Val(Duration::from_millis(timeout_millis as u64)));
         return match result {
-            Ok(n) => JNI_TRUE,
-            Err(e) => JNI_FALSE
+            Ok(_) => JNI_TRUE,
+            Err(_) => JNI_FALSE
         };
     }
 }
