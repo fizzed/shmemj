@@ -1,6 +1,9 @@
 package com.fizzed.shmemj;
 
 public class SharedMemoryFactory {
+    static {
+        LibraryLoader.loadLibrary();
+    }
 
     private long size;
     private String osId;
@@ -23,8 +26,16 @@ public class SharedMemoryFactory {
         return this;
     }
 
-    public native SharedMemory create();
+    public SharedMemory create() {
+        return this.doCreate();
+    }
 
-    public native SharedMemory open();
+    public SharedMemory open() {
+        return this.doOpen();
+    }
+
+    protected native SharedMemory doCreate();
+
+    protected native SharedMemory doOpen();
 
 }

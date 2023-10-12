@@ -1,0 +1,14 @@
+ARG FROM_IMAGE
+
+FROM ${FROM_IMAGE}
+
+ARG USERID
+ARG USERNAME
+
+# Download zlib and bzip2 source packages
+RUN wget -P /opt https://zlib.net/zlib-1.2.13.tar.gz
+RUN wget -P /opt https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz
+
+RUN groupadd -g ${USERID} ${USERNAME}
+RUN useradd -m -l -u ${USERID} -g ${USERNAME} ${USERNAME}
+USER ${USERNAME}

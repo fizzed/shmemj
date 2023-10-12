@@ -10,3 +10,6 @@ raw_sync = "0.1.5"
 
 [lib]
 crate_type = ["cdylib"]
+
+[profile.release]
+strip="symbols"

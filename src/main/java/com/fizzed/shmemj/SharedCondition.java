@@ -2,11 +2,16 @@ package com.fizzed.shmemj;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
 
-public class SharedCondition {
+public class SharedCondition implements Closeable {
+    static {
+        LibraryLoader.loadLibrary();
+    }
 
-    /** pointer to the native object */
+    /**
+     * pointer to the native object
+     */
     private long ptr;
     private long size;
 
@@ -19,9 +24,21 @@ public class SharedCondition {
         return this.size;
     }
 
-    //public native void waitMillis(long millis);
+    protected native boolean awaitMillis(long timeoutMillis);
 
-    /*private native void destroy();
+    public void await() {
+        this.awaitMillis(0);
+    }
+
+    public boolean await(long time, TimeUnit unit) {
+        return this.awaitMillis(unit.toMillis(time));
+    }
+
+    public native void signal();
+
+    public native void clear();
+
+    private native void destroy();
 
     @Override
     public void close() throws IOException {
@@ -31,7 +48,7 @@ public class SharedCondition {
     @Override
     protected void finalize() throws Throwable {
         this.destroy();
-    }*/
+    }
 
     @Override
     public String toString() {

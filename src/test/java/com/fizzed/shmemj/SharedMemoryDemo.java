@@ -1,5 +1,6 @@
 package com.fizzed.shmemj;
 
+import com.fizzed.jne.JNE;
 import com.fizzed.jne.Options;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -7,22 +8,14 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class SharedMemoryDemo {
     static private final Logger log = LoggerFactory.getLogger(SharedMemoryDemo.class);
 
     static public void main(String[] args) throws Exception {
-        Options options = new Options();
-        String libraryName = options.createLibraryName("shmemj", options.getOperatingSystem(), null, null, null);
-        Path libFile = Paths.get("native/target/debug", libraryName);
-        String libPath = libFile.toAbsolutePath().toString();
-
-        log.debug("Loading lib {}", libPath);
-
-        System.load(libPath);
-
-        log.debug("Loaded library!");
-
         SharedMemory shmem = new SharedMemoryFactory()
             .setSize(2048L)
             .create();
@@ -32,22 +25,57 @@ public class SharedMemoryDemo {
         log.debug("OsId: {}", shmem.getOsId());
         log.debug("Size: {}", shmem.getSize());
 
-        final ByteBuffer buf = shmem.getByteBuffer();
+
+        /*final SharedCondition condition1 = shmem.newCondition(0);
+
+        log.debug("condition1: {}", condition1);
+
+        *//*ExecutorService es = Executors.newSingleThreadExecutor();
+        es.submit(() -> {
+           try {
+               Thread.sleep(2000L);
+                log.debug("Signaling from another thread...");
+               condition1.signal();
+           } catch (Exception e) {
+               log.error("", e);
+               return;
+           }
+        });*//*
+
+        condition1.signal();
+
+        log.debug("Will try to await...");
+        boolean signaled = condition1.await(5, TimeUnit.SECONDS);
+        log.debug("Returned, was signaled? {}", signaled);
+
+        condition1.signal();
+
+        log.debug("Signaled");
+
+        condition1.close();
+
+        condition1.clear();
+
+        log.debug("Cleared");*/
+
+
+        final ByteBuffer buf = shmem.newByteBuffer(0, 30);
         buf.putDouble(5.4d);
+        buf.putDouble(3.12345d);
+        buf.putDouble(3.12345d);
+
+        log.debug("Buf: isDirect={}, class={}, capacity={}, position={}", buf.isDirect(), buf.getClass(), buf.capacity(), buf.position());
+
         buf.flip();
 
         log.debug("Buf: d={}", buf.getDouble());
-        log.debug("Buf: isDirect={}, class={}", buf.isDirect(), buf.getClass());
 
-
-        final ByteBuffer buf2 = shmem.getByteBuffer();
+        final ByteBuffer buf2 = shmem.newByteBuffer(0, 20);
 
         log.debug("Buf2: d={}", buf2.getDouble());
         log.debug("Buf2: d={}", buf2.getDouble());
 
-        /*String r = SharedMemory.hello("yo");
 
-        log.debug("r was {}", r);*/
 
         shmem.close();
 

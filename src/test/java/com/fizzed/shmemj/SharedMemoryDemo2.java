@@ -32,7 +32,7 @@ public class SharedMemoryDemo2 {
         log.debug("OsId: {}", shmem.getOsId());
         log.debug("Size: {}", shmem.getSize());
 
-        final ByteBuffer buf = shmem.getByteBuffer();
+        final ByteBuffer buf = shmem.newByteBuffer(0, 20);
 
         log.debug("Buf: d={}", buf.getDouble());
         log.debug("Buf: isDirect={}, class={}", buf.isDirect(), buf.getClass());
