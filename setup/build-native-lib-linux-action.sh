@@ -8,14 +8,14 @@ PROJECT_DIR=$PWD
 BUILDOS=$1
 BUILDARCH=$2
 
+[[ -z "$BUILDOS" ]] && { echo "BUILDOS is empty" ; exit 1; }
+[[ -z "$BUILDARCH" ]] && { echo "BUILDARCH is empty" ; exit 1; }
+
 cd native
 cargo build --release
 
-TARGET_LIB=libshmemj.so
-#OUTPUT_DIR="../../tkrzw-${BUILDOS}-${BUILDARCH}/src/main/resources/jne/${BUILDOS}/${BUILDARCH}"
-OUTPUT_DIR="../target/test-classes/jne/${BUILDOS}/${BUILDARCH}"
-mkdir -p "$OUTPUT_DIR"
-cp target/release/$TARGET_LIB "$OUTPUT_DIR"
+OUTPUT_DIR="$PROJECT_DIR/shmemj-${BUILDOS}-${BUILDARCH}/src/main/resources/jne/${BUILDOS}/${BUILDARCH}"
+cp "$PROJECT_DIR/native/target/release/libshmemj.so" "$OUTPUT_DIR"
 
 #TARGET_LIB=libjtkrzw.so
 #$STRIP ./$TARGET_LIB

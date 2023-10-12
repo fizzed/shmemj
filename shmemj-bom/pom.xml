@@ -1,0 +1,97 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>shmemj-bom</artifactId>
+    <name>shmemj-bom</name>
+    <packaging>pom</packaging>
+    
+    <parent>
+        <groupId>com.fizzed</groupId>
+        <artifactId>shmemj</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-linux-x64</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!--<dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-linux-arm64</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-linux-armhf</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-linux-armel</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-linux_musl-x64</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-linux_musl-arm64</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-linux-riscv64</artifactId>
+                <version>${project.version}</version>
+            </dependency>-->
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-macos-x64</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-macos-arm64</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-windows-x64</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!--<dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-windows-arm64</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-all-natives</artifactId>
+                <version>${project.version}</version>
+            </dependency>-->
+
+        </dependencies>
+    </dependencyManagement>
+    
+</project>

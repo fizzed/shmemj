@@ -1,1 +1,1 @@
-# Siamese
+# Shmemj (Shared Memory for Java)
