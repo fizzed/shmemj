@@ -36,7 +36,7 @@ public class SharedMemory implements Closeable {
         if (offset >= size) {
             throw new IllegalArgumentException("Offset " + offset + " exceeds shared memory size of " + size);
         }
-        if (offset+length >= size) {
+        if (offset+length > size) {
             throw new IllegalArgumentException("Offset+length " + (offset+length) + " exceeds shared memory size of " + size);
         }
         return this.doNewByteBuffer(offset, length);
@@ -49,7 +49,7 @@ public class SharedMemory implements Closeable {
     private native void destroy();
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         this.destroy();
     }
 

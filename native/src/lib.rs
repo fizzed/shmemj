@@ -1,3 +1,5 @@
+use std::any::Any;
+use std::error::Error;
 use std::mem::ManuallyDrop;
 use std::time::Duration;
 use jni::JNIEnv;
@@ -6,7 +8,18 @@ use jni::sys::{jstring, jlong, jboolean, JNI_TRUE, JNI_FALSE};
 use jni::sys::jobject;
 use raw_sync::events::{Event, EventImpl, EventInit, EventState};
 use raw_sync::Timeout;
-use shared_memory::{Shmem, ShmemConf};
+use shared_memory::{Shmem, ShmemConf, ShmemError};
+
+fn handle_shmem_error<T>(env: &mut JNIEnv, result: &Result<T,ShmemError>) -> bool {
+    if result.is_err() {
+        let error = result.as_ref().err().unwrap();
+        let error_message = format!("{:?}: {}", error, error);
+        env.throw(error_message);
+        return true;
+    } else {
+        return false;
+    }
+}
 
 //
 // SharedMemoryFactory native methods
@@ -20,14 +33,17 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_doCreate<'loca
         .j()
         .unwrap();
 
-    println!("doCreate(): size={}", size);
+    // println!("doCreate(): size={}", size);
 
-    let shmem = ShmemConf::new()
+    let shmem_result = ShmemConf::new()
         .size(size as usize)
-        .create()
-        .unwrap();
+        .create();
 
-    return create_shmem_object(&mut env, shmem);
+    if handle_shmem_error(&mut env, &shmem_result) {
+        return JObject::null().into_raw();
+    }
+
+    return create_shmem_object(&mut env, shmem_result.unwrap());
 }
 
 #[no_mangle]
@@ -46,15 +62,18 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_doOpen<'local>
     let os_id_jstr = unsafe { env.get_string_unchecked(&os_id).unwrap() };
     let os_id = os_id_jstr.to_str().unwrap();
 
-    println!("doOpen(): size={}, os_id={}", size, os_id);
+    // println!("doOpen(): size={}, os_id={}", size, os_id);
 
-    let shmem_raw = ShmemConf::new()
+    let shmem_result = ShmemConf::new()
         .size(size as usize)
         .os_id(os_id)
-        .open()
-        .unwrap();
+        .open();
 
-    return create_shmem_object(&mut env, shmem_raw);
+    if handle_shmem_error(&mut env, &shmem_result) {
+        return JObject::null().into_raw();
+    }
+
+    return create_shmem_object(&mut env, shmem_result.unwrap());
 }
 
 fn create_shmem_object(env: &mut JNIEnv, shmem: Shmem) -> jobject {
@@ -65,7 +84,7 @@ fn create_shmem_object(env: &mut JNIEnv, shmem: Shmem) -> jobject {
     // this moves it to the heap, but then leaks it back so we can keep it around
     let shmem_leaked = Box::leak(Box::new(shmem));
 
-    println!("create(): shmem ptr={:p}, osid={}, byteptr={:p}", shmem_leaked, shmem_leaked.get_os_id(), shmem_leaked.as_ptr());
+    // println!("create(): shmem ptr={:p}, osid={}, byteptr={:p}", shmem_leaked, shmem_leaked.get_os_id(), shmem_leaked.as_ptr());
 
     let shared_memory_class = env.find_class("com/fizzed/shmemj/SharedMemory").unwrap();
 
@@ -76,7 +95,7 @@ fn create_shmem_object(env: &mut JNIEnv, shmem: Shmem) -> jobject {
 
     let ptr = shmem_leaked as *const Shmem as jlong;
 
-    println!("create(): ptr was {}", ptr);
+    // println!("create(): ptr was {}", ptr);
 
     // primitive type of a long is a J
     env.set_field(&shmem_jobj, "ptr", "J", JValue::Long(ptr))
@@ -89,7 +108,7 @@ fn create_shmem_object(env: &mut JNIEnv, shmem: Shmem) -> jobject {
 // SharedMemory native methods
 //
 
-fn get_shmem_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> &'local mut Shmem {
+fn get_shmem_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> Option<&'local mut Shmem> {
 
     // the "ptr" field on the SharedMemory class instance is the address of the companion object in rust
     let ptr = env.get_field(&target, "ptr", "J")
@@ -97,30 +116,26 @@ fn get_shmem_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> &'local mu
         .j()
         .unwrap();
 
-    // NOTE: ptr should NOT be zero
+    if ptr == 0 {
+        return None;
+    }
 
     let shmem = unsafe { &mut *(ptr as *mut Shmem) };
 
-    return shmem;
+    return Some(shmem);
 }
 
 #[no_mangle]
 pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_destroy<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
 
-    // do we need to destroy this?
-    let ptr = env.get_field(&target, "ptr", "J")
-        .unwrap()
-        .j()
-        .unwrap();
-
-    if ptr == 0 {
-        return;     // nothing to do
-    }
-
     let shmem = get_shmem_co_object(&mut env, &target);
 
+    if shmem.is_none() {
+        return; // nothing to do
+    }
+
     unsafe {
-        let shmem_boxed = Box::from_raw(shmem);
+        let shmem_boxed = Box::from_raw(shmem.unwrap());
         drop(shmem_boxed);
     }
 
@@ -129,12 +144,25 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_destroy<'local>(mut e
         .unwrap();
 }
 
+fn handle_shmem_invalid(env: &mut JNIEnv, shmem: &Option<&mut Shmem>) -> bool {
+    if shmem.is_none() {
+        env.throw("SharedMemory is invalid (no native resource attached)").unwrap();
+        return true;
+    } else {
+        return false;
+    }
+}
+
 #[no_mangle]
 pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getOsId<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jstring {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
-    let os_id = shmem.get_os_id();
+    if handle_shmem_invalid(&mut env, &shmem) {
+        return JObject::null().into_raw();
+    }
+
+    let os_id = shmem.unwrap().get_os_id();
 
     let output = env.new_string(os_id)
         .expect("Couldn't create java string!");
@@ -147,7 +175,11 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getSize<'local>(mut e
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
-    let size = shmem.len();
+    if handle_shmem_invalid(&mut env, &shmem) {
+        return -1;
+    }
+
+    let size = shmem.unwrap().len();
 
     return size as jlong;
 }
@@ -156,10 +188,14 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getSize<'local>(mut e
 pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_doNewByteBuffer<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, length: jlong) -> jobject {
     let shmem = get_shmem_co_object(&mut env, &target);
 
-    unsafe {
-        let mem_ptr = shmem.as_ptr().offset(offset as isize);
+    if handle_shmem_invalid(&mut env, &shmem) {
+        return JObject::null().into_raw();
+    }
 
-        let byte_buffer = env.new_direct_byte_buffer(shmem.as_ptr(), length as usize).unwrap();
+    unsafe {
+        let mem_ptr = shmem.unwrap().as_ptr().offset(offset as isize);
+
+        let byte_buffer = env.new_direct_byte_buffer(mem_ptr, length as usize).unwrap();
 
         return byte_buffer.into_raw();
     }
@@ -170,19 +206,23 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_doNewCondition<'local
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
+    if handle_shmem_invalid(&mut env, &shmem) {
+        return JObject::null().into_raw();
+    }
+
     //
     // create an "Event" that we'll associate with a SharedCondition
     //
     //
 
-    let mem_ptr = unsafe { shmem.as_ptr().offset(offset as isize) };
+    let mem_ptr = unsafe { shmem.unwrap().as_ptr().offset(offset as isize) };
 
     let (event_boxed, event_size) = unsafe { Event::new(mem_ptr, true).unwrap() };
 
     // since its already boxed, we'll leak it out, then make it manually dropped
     let event = Box::leak(event_boxed);
 
-    println!("newCondition(): event ptr={:p}, size={}", event, event_size);
+    // println!("newCondition(): event ptr={:p}, size={}", event, event_size);
 
     let shared_condition_class = env.find_class("com/fizzed/shmemj/SharedCondition").unwrap();
 
@@ -197,7 +237,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_doNewCondition<'local
     let event_ptr_raw = Box::into_raw(event_ptr_boxed);
     let ptr = event_ptr_raw as usize;
 
-    println!("newCondition(): ptr was {}", ptr);
+    // println!("newCondition(): ptr was {}", ptr);
 
     // primitive type of a long is a J
     env.set_field(&shcond_obj, "ptr", "J", JValue::Long(ptr as jlong))
@@ -279,7 +319,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_awaitMillis<'local
 
     let event = event_result.unwrap();
 
-    println!("awaitMillis(): event ptr={:p}", event);
+    // println!("awaitMillis(): event ptr={:p}", event);
 
     if timeoutMillis == 0 {
         // this cannot timeout so we can ignore the result
@@ -307,7 +347,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_signal<'local>(mut
 
     let event = event_result.unwrap();
 
-    println!("signal(): event ptr={:p}", event);
+    // println!("signal(): event ptr={:p}", event);
 
     event.set(EventState::Signaled).unwrap();
 }
@@ -324,7 +364,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_clear<'local>(mut 
 
     let event = event_result.unwrap();
 
-    println!("clear(): event ptr={:p}", event);
+    // println!("clear(): event ptr={:p}", event);
 
     event.set(EventState::Clear).unwrap();
 }
