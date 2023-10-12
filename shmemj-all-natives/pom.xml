@@ -34,6 +34,21 @@
             <artifactId>shmemj-linux-x64</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.fizzed</groupId>
+            <artifactId>shmemj-macos-arm64</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fizzed</groupId>
+            <artifactId>shmemj-macos-x64</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fizzed</groupId>
+            <artifactId>shmemj-windows-x64</artifactId>
+        </dependency>
+
         <!-- testing -->
 
         <dependency>

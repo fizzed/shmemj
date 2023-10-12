@@ -15,4 +15,5 @@ cd native
 cargo build --release
 
 OUTPUT_DIR="$PROJECT_DIR/shmemj-${BUILDOS}-${BUILDARCH}/src/main/resources/jne/${BUILDOS}/${BUILDARCH}"
-cp "$PROJECT_DIR"/native/target/release/libshmemj.* "$OUTPUT_DIR"
+cp "$PROJECT_DIR"/native/target/release/*.so "$OUTPUT_DIR"
+cp "$PROJECT_DIR"/native/target/release/*.dylib "$OUTPUT_DIR"
