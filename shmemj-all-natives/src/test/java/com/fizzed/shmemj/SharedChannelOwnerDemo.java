@@ -23,17 +23,22 @@ public class SharedChannelOwnerDemo {
             // asynchronously read responses
             final ExecutorService executor = Executors.newSingleThreadExecutor();
             executor.submit(() -> {
-                while (true) {
-                    // now we want to read from the channel!
-                    log.info("readBegin()");
-                    final ByteBuffer readBuffer = channel.readBegin(120, TimeUnit.SECONDS);
+                try {
+                    while (true) {
+                        // now we want to read from the channel!
+                        log.info("readBegin()");
+                        final ByteBuffer readBuffer = channel.readBegin(120, TimeUnit.SECONDS);
 
-                    String recvMessage = getStringUTF8(readBuffer);
-                    log.info("Recv message: {}", recvMessage);
+                        String recvMessage = getStringUTF8(readBuffer);
+                        log.info("Recv message: {}", recvMessage);
 
-                    log.info("readEnd()");
-                    channel.readEnd();
+                        log.info("readEnd()");
+                        channel.readEnd();
+                    }
+                } catch (Exception e) {
+                    log.error("Error while reading", e);
                 }
+                log.debug("Read task exiting...");
             });
 
             for (int i = 0; i < 20; i++) {
@@ -51,7 +56,8 @@ public class SharedChannelOwnerDemo {
                 channel.writeEnd();
             }
 
-            executor.shutdown();
+            log.info("Shutting executor down...");
+            executor.shutdownNow();
             executor.awaitTermination(10, TimeUnit.SECONDS);
         }
 

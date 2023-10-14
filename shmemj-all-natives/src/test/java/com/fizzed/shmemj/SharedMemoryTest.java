@@ -92,7 +92,7 @@ public class SharedMemoryTest {
     }
 
     @Test
-    public void newCondition() {
+    public void newCondition() throws Exception {
         final SharedMemory shmem = new SharedMemoryFactory()
             .setSize(2048L)
             .create();

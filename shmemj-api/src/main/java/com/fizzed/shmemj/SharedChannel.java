@@ -39,7 +39,7 @@ public class SharedChannel {
         return this.ownerBuffer.capacity();
     }
 
-    public ByteBuffer writeBegin(long timeout, TimeUnit unit) throws TimeoutException {
+    public ByteBuffer writeBegin(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException {
         final SharedCondition condition = this.owner ? this.ownerWriteCondition : this.clientWriteCondition;
 
         // we need to wait till we are allowed to write
@@ -64,7 +64,7 @@ public class SharedChannel {
         }
     }
 
-    public ByteBuffer readBegin(long timeout, TimeUnit unit) throws TimeoutException {
+    public ByteBuffer readBegin(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException {
         final SharedCondition condition = this.owner ? this.ownerReadCondition : this.clientReadCondition;
 
         // we need to wait till we are allowed to read

@@ -27,7 +27,7 @@ public class SharedPipe {
         this.buffer = buffer;
     }
 
-    public ByteBuffer beginWrite(long timeout, TimeUnit unit) throws TimeoutException {
+    public ByteBuffer beginWrite(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException {
 //        final SharedCondition writeCondition = this.owner ? this.ownerWriteCondition : this.clientWriteCondition;
         final SharedCondition writeCondition = this.ownerWriteCondition;
 
@@ -57,7 +57,7 @@ public class SharedPipe {
         }
     }
 
-    public ByteBuffer beginRead(long timeout, TimeUnit unit) throws TimeoutException {
+    public ByteBuffer beginRead(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException {
         final SharedCondition readCondition = this.owner ? this.ownerReadCondition : this.clientReadCondition;
 
         // we need to wait till we are allowed to read

@@ -331,7 +331,7 @@ fn get_event_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> Option<&'l
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_destroy<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeDestroy<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
 
     let ptr = env.get_field(&target, "ptr", "J")
         .unwrap()
@@ -357,7 +357,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_destroy<'local>(mu
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_awaitMillis<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, timeout_millis: jlong) -> jboolean {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeAwaitMillis<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, timeout_millis: jlong) -> jboolean {
 
     let event_result = get_event_co_object(&mut env, &target);
 
@@ -385,7 +385,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_awaitMillis<'local
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_signal<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeSignal<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
 
     let event_result = get_event_co_object(&mut env, &target);
 
@@ -402,7 +402,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_signal<'local>(mut
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_clear<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeClear<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
 
     let event_result = get_event_co_object(&mut env, &target);
 
