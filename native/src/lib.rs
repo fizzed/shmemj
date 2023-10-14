@@ -7,6 +7,14 @@ use raw_sync::events::{Event, EventImpl, EventInit, EventState};
 use raw_sync::Timeout;
 use shared_memory::{Shmem, ShmemConf, ShmemError};
 
+fn to_jboolean(v: bool) -> jboolean {
+    if v {
+        return JNI_TRUE;
+    } else {
+        return JNI_FALSE;
+    }
+}
+
 fn handle_shmem_error<T>(env: &mut JNIEnv, result: &Result<T,ShmemError>) -> bool {
     if result.is_err() {
         let error = result.as_ref().err().unwrap();
@@ -151,12 +159,26 @@ fn handle_shmem_invalid(env: &mut JNIEnv, shmem: &Option<&mut Shmem>) -> bool {
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_isOwner<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jboolean {
+
+    let shmem = get_shmem_co_object(&mut env, &target);
+
+    if handle_shmem_invalid(&mut env, &shmem) {
+        return JNI_FALSE;   // fake return since exception was thrown
+    }
+
+    let is_owner = shmem.unwrap().is_owner();
+
+    return to_jboolean(is_owner);
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getOsId<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jstring {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
     if handle_shmem_invalid(&mut env, &shmem) {
-        return JObject::null().into_raw();
+        return JObject::null().into_raw();   // fake return since exception was thrown
     }
 
     let os_id = shmem.unwrap().get_os_id();
@@ -173,7 +195,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getSize<'local>(mut e
     let shmem = get_shmem_co_object(&mut env, &target);
 
     if handle_shmem_invalid(&mut env, &shmem) {
-        return -1;
+        return -1;   // fake return since exception was thrown
     }
 
     let size = shmem.unwrap().len();
@@ -198,24 +220,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_doNewByteBuffer<'loca
     }
 }
 
-#[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_doNewCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong) -> jobject {
-
-    let shmem = get_shmem_co_object(&mut env, &target);
-
-    if handle_shmem_invalid(&mut env, &shmem) {
-        return JObject::null().into_raw();
-    }
-
-    //
-    // create an "Event" that we'll associate with a SharedCondition
-    //
-    //
-
-    let mem_ptr = unsafe { shmem.unwrap().as_ptr().offset(offset as isize) };
-
-    let (event_boxed, event_size) = unsafe { Event::new(mem_ptr, true).unwrap() };
-
+fn create_event_object(env: &mut JNIEnv, event_boxed: Box<dyn EventImpl>, event_size: usize) -> jobject {
     // since its already boxed, we'll leak it out, then make it manually dropped
     let event = Box::leak(event_boxed);
 
@@ -244,6 +249,53 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_doNewCondition<'local
         .unwrap();
 
     return shcond_obj.into_raw();
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_doNewCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, auto_reset: jboolean) -> jobject {
+
+    let shmem = get_shmem_co_object(&mut env, &target);
+
+    if handle_shmem_invalid(&mut env, &shmem) {
+        return JObject::null().into_raw();
+    }
+
+    //
+    // create an "Event" that we'll associate with a SharedCondition
+    //
+    //
+    unsafe {
+        let mem_ptr = shmem.unwrap().as_ptr().offset(offset as isize);
+
+        let auto_reset_r = JValue::Bool(auto_reset).z().unwrap();
+
+        let (event_boxed, event_size) = Event::new(mem_ptr, auto_reset_r).unwrap();
+
+        return create_event_object(&mut env, event_boxed, event_size);
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_doExistingCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong) -> jobject {
+
+    let shmem = get_shmem_co_object(&mut env, &target);
+
+    if handle_shmem_invalid(&mut env, &shmem) {
+        return JObject::null().into_raw();
+    }
+
+    //
+    // create an "Event" that we'll associate with a SharedCondition
+    //
+    //
+
+    unsafe {
+        let mem_ptr = shmem.unwrap().as_ptr().offset(offset as isize);
+
+        let (event_boxed, event_size) = Event::from_existing(mem_ptr).unwrap();
+
+        return create_event_object(&mut env, event_boxed, event_size);
+    }
 }
 
 //

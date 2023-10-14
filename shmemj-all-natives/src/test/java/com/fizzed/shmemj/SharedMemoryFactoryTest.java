@@ -15,6 +15,7 @@ public class SharedMemoryFactoryTest {
         try {
             assertThat(shmem.getSize(), is(2048L));
             assertThat(shmem.getOsId(), startsWith("/shmem_"));
+            assertThat(shmem.isOwner(), is(true));
         } finally {
             shmem.close();
         }
@@ -44,9 +45,11 @@ public class SharedMemoryFactoryTest {
                 .open();
 
             try {
+                // on some operating systems, the size != each other for some reason?
 //                assertThat(shmem1.getSize(), is(shmem2.getSize()));
                 assertThat(shmem1.getOsId(), is(shmem2.getOsId()));
-
+                assertThat(shmem1.isOwner(), is(true));
+                assertThat(shmem2.isOwner(), is(false));
             } finally {
                 shmem2.close();
             }

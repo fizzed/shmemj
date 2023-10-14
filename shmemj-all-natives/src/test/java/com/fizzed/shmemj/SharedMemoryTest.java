@@ -39,7 +39,7 @@ public class SharedMemoryTest {
             }
 
             try {
-                shmem.newCondition(1L);
+                shmem.newCondition(1L, true);
             } catch (Exception e) {
                 assertThat(e.getMessage(), containsString("no native resource"));
             }
@@ -98,14 +98,13 @@ public class SharedMemoryTest {
             .create();
 
         try {
-            final SharedCondition condition1 = shmem.newCondition(0);
+            final SharedCondition condition1 = shmem.newCondition(0, true);
 
             assertThat(condition1.getSize(), greaterThan(1L));
 
             // this should work
             condition1.signal();
             condition1.clear();
-
 
             boolean signaled;
 
@@ -117,7 +116,6 @@ public class SharedMemoryTest {
             condition1.signal();
             signaled = condition1.await(10, TimeUnit.MILLISECONDS);
             assertThat(signaled, is(true));
-
         } finally {
             shmem.close();
         }

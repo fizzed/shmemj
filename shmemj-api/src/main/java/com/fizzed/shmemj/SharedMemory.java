@@ -1,7 +1,6 @@
 package com.fizzed.shmemj;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public class SharedMemory implements Closeable {
@@ -18,14 +17,25 @@ public class SharedMemory implements Closeable {
 
     public native String getOsId();
 
+    public native boolean isOwner();
+
     public native long getSize();
 
-    public SharedCondition newCondition(long offset) {
+    public SharedCondition newCondition(long offset, boolean autoReset) {
+        this.checkConditionOffset(offset);
+        return this.doNewCondition(offset, autoReset);
+    }
+
+    public SharedCondition existingCondition(long offset) {
+        this.checkConditionOffset(offset);
+        return this.doExistingCondition(offset);
+    }
+
+    private void checkConditionOffset(long offset) {
         long size = this.getSize();
         if (offset >= size) {
             throw new IllegalArgumentException("Offset " + offset + " exceeds shared memory size of " + size);
         }
-        return this.doNewCondition(offset);
     }
 
     public ByteBuffer newByteBuffer(long offset, long length) {
@@ -42,7 +52,9 @@ public class SharedMemory implements Closeable {
         return this.doNewByteBuffer(offset, length);
     }
 
-    protected native SharedCondition doNewCondition(long offset);
+    protected native SharedCondition doNewCondition(long offset, boolean autoReset);
+
+    protected native SharedCondition doExistingCondition(long offset);
 
     protected native ByteBuffer doNewByteBuffer(long offset, long length);
 
