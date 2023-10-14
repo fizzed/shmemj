@@ -31,18 +31,26 @@ fn handle_shmem_error<T>(env: &mut JNIEnv, result: &Result<T,ShmemError>) -> boo
 //
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeCreate<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeCreate<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, size: jlong, flink: JString<'local>) -> jobject {
 
-    let size = env.get_field(&target, "size", "J")
+    /*let size = env.get_field(&target, "size", "J")
         .unwrap()
         .j()
-        .unwrap();
+        .unwrap();*/
 
     // println!("doCreate(): size={}", size);
 
-    let shmem_result = ShmemConf::new()
-        .size(size as usize)
-        .create();
+    let mut shmem_conf = ShmemConf::new()
+        .size(size as usize);
+
+    if !flink.is_null() {
+        let fs = env.get_string(&flink).unwrap();
+        let s = fs.to_str().unwrap();
+        println!("Using flink {}", s);
+        shmem_conf = shmem_conf.flink(s);
+    }
+
+    let shmem_result = shmem_conf.create();
 
     if handle_shmem_error(&mut env, &shmem_result) {
         return JObject::null().into_raw();
@@ -52,9 +60,9 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeCreate<'
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeOpen<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeOpen<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, flink: JString<'local>, os_id: JString<'local>) -> jobject {
 
-    let size = env.get_field(&target, "size", "J")
+    /*let size = env.get_field(&target, "size", "J")
         .unwrap()
         .j()
         .unwrap();
@@ -65,14 +73,27 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeOpen<'lo
         .unwrap());
 
     let os_id_jstr = unsafe { env.get_string_unchecked(&os_id).unwrap() };
-    let os_id = os_id_jstr.to_str().unwrap();
+    let os_id = os_id_jstr.to_str().unwrap();*/
 
     // println!("doOpen(): size={}, os_id={}", size, os_id);
 
-    let shmem_result = ShmemConf::new()
-        .size(size as usize)
-        .os_id(os_id)
-        .open();
+    let mut shmem_conf = ShmemConf::new();
+
+    if !flink.is_null() {
+        let fs = env.get_string(&flink).unwrap();
+        let s = fs.to_str().unwrap();
+        println!("Using flink {}", s);
+        shmem_conf = shmem_conf.flink(s);
+    }
+
+    if !os_id.is_null() {
+        let fs = env.get_string(&os_id).unwrap();
+        let s = fs.to_str().unwrap();
+        println!("Using os_id {}", s);
+        shmem_conf = shmem_conf.os_id(s);
+    }
+
+    let shmem_result = shmem_conf.open();
 
     if handle_shmem_error(&mut env, &shmem_result) {
         return JObject::null().into_raw();

@@ -1,6 +1,8 @@
 package com.fizzed.shmemj;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -31,12 +33,76 @@ public class SharedChannel {
         this.clientBuffer = clientBuffer;
     }
 
+    public long getOwnerPid() {
+        return this.controlBuffer.getLong(0);
+    }
+
+    public long getClientPid() {
+        return this.controlBuffer.getLong(8);
+    }
+
+    protected void setOwnerPid(long pid) {
+        this.controlBuffer.putLong(0, pid);
+    }
+
+    protected void setClientPid(long pid) {
+        this.controlBuffer.putLong(8, pid);
+    }
+
     public long getOwnerBufferLength() {
         return this.ownerBuffer.capacity();
     }
 
     public long getClientBufferLength() {
         return this.ownerBuffer.capacity();
+    }
+
+    protected long awaitConnected(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException, IOException {
+        // is a client already connected?
+        long pid = this.owner ? this.getClientPid() : this.getOwnerPid();
+
+        // if the clientPid == 0, we need to wait for it to arrive
+        if (pid == 0) {
+            System.out.println("Waiting on write condition...");
+            // we need to wait for the other party to be ready to write
+            final SharedCondition condition = this.owner ? this.clientWriteCondition : this.ownerWriteCondition;
+            boolean signaled = condition.await(timeout, unit);
+            if (!signaled) {
+                throw new TimeoutException();
+            }
+
+            System.out.println("Signaled..");
+
+            // re-fetch the pid value again to see what happened
+            pid = this.owner ? this.getClientPid() : this.getOwnerPid();
+
+            // we must "re-signal" the condition so we can write
+            condition.signal();
+        }
+
+        System.out.println("ummm pid was " + pid);
+
+        if (pid > 0) {
+            return pid;             // success, owner/client is connected
+        } else if (pid < 0) {       // owner/client was connected, but is now closed
+            throw new ClosedChannelException();
+        } else {                    // still zero? this is some kind of logic error
+            throw new IllegalStateException("Should be impossible case of connected (did someone write to the channel before it was connected?)");
+        }
+    }
+
+    public long connect(long timeout, TimeUnit unit) throws IOException, InterruptedException, TimeoutException {
+        long pid = ProcessHandle.current().pid();
+
+        if (this.owner) {
+            this.setOwnerPid(pid);
+            this.ownerWriteCondition.signal();
+        } else {
+            this.setClientPid(pid);
+            this.clientWriteCondition.signal();
+        }
+
+        return this.awaitConnected(timeout, unit);
     }
 
     public ByteBuffer writeBegin(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException {
@@ -99,11 +165,7 @@ public class SharedChannel {
 
         // control buffer is 16 bytes (8 bytes for 2 pids)
         final ByteBuffer controlBuffer = shmem.newByteBuffer(offset, 16);
-        offset += controlBuffer.capacity();
-
-        // let's make sure the control buffer is zeroed out
-        controlBuffer.putLong(0);
-        controlBuffer.putLong(0);
+        offset += 16;
 
         if (shmem.isOwner()) {
             ownerWriteCondition = shmem.newCondition(offset, true);
@@ -118,9 +180,9 @@ public class SharedChannel {
             clientReadCondition = shmem.newCondition(offset, true);
             offset += clientReadCondition.getSize();
 
-            // by default a shared channel is ready for writing by owner or client
-            ownerWriteCondition.signal();
-            clientWriteCondition.signal();
+            // zero out control buffer
+            controlBuffer.putLong(0, 0);
+            controlBuffer.putLong(1, 0);
         } else {
             ownerWriteCondition = shmem.existingCondition(offset);
             offset += ownerWriteCondition.getSize();

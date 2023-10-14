@@ -7,6 +7,7 @@ public class SharedMemoryFactory {
 
     private long size;
     private String osId;
+    private String flink;
 
     public long getSize() {
         return size;
@@ -29,20 +30,29 @@ public class SharedMemoryFactory {
         return this;
     }
 
+    public String getFlink() {
+        return flink;
+    }
+
+    public SharedMemoryFactory setFlink(String flink) {
+        this.flink = flink;
+        return this;
+    }
+
     public SharedMemory create() {
-        return this.nativeCreate();
+        return this.nativeCreate(this.size, this.flink);
     }
 
     public SharedMemory open() {
-        return this.nativeOpen();
+        return this.nativeOpen(this.flink, this.osId);
     }
 
     //
     // native methods
     //
 
-    protected native SharedMemory nativeCreate();
+    protected native SharedMemory nativeCreate(long size, String flink);
 
-    protected native SharedMemory nativeOpen();
+    protected native SharedMemory nativeOpen(String flink, String osId);
 
 }

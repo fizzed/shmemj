@@ -4,6 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
 
 import static com.fizzed.shmemj.DemoHelper.getStringUTF8;
@@ -13,12 +16,15 @@ public class SharedChannelClientDemo {
     static private final Logger log = LoggerFactory.getLogger(SharedChannelClientDemo.class);
 
     static public void main(String[] args) throws Exception {
-        final String osId = "/shmem_5B206A1F10907FF";
+        final Path flinkPath = Paths.get("/tmp/shared_channel_demo.shmem");
 
-        try (final SharedMemory shmem = new SharedMemoryFactory().setOsId(osId).open()) {
+        try (final SharedMemory shmem = new SharedMemoryFactory().setFlink(flinkPath.toString()).open()) {
             log.info("Created shmem: owner={}, size={}, os_id={}", shmem.isOwner(), shmem.getSize(), shmem.getOsId());
 
             final SharedChannel channel = SharedChannel.create(shmem);
+
+            final long ownerPid = channel.connect(120, TimeUnit.SECONDS);
+            log.info("Connected with owner process {}", ownerPid);
 
             for (int i = 0; i < 20; i++) {
                 log.info("readBegin()");
