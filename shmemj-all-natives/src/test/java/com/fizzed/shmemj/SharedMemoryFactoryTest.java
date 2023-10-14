@@ -25,10 +25,10 @@ public class SharedMemoryFactoryTest {
     public void createFailsWithNegativeSize() {
         try {
             final SharedMemory shmem = new SharedMemoryFactory()
-                .setSize(-1L)
+                .setSize(0L)
                 .create();
         } catch (Exception e) {
-            assertThat(e.getMessage(), containsString("UnknownOsError"));
+            assertThat(e.getMessage(), containsString("MapSizeZero"));
         }
     }
 

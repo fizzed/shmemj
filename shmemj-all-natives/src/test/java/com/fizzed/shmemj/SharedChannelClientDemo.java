@@ -13,7 +13,7 @@ public class SharedChannelClientDemo {
     static private final Logger log = LoggerFactory.getLogger(SharedChannelClientDemo.class);
 
     static public void main(String[] args) throws Exception {
-        final String osId = "/shmem_970C4685E659A65E";
+        final String osId = "/shmem_FC42773D2D7A7984";
 
         try (final SharedMemory shmem = new SharedMemoryFactory().setOsId(osId).open()) {
             log.info("Created shmem: owner={}, size={}, os_id={}", shmem.isOwner(), shmem.getSize(), shmem.getOsId());
