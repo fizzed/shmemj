@@ -33,13 +33,6 @@ fn handle_shmem_error<T>(env: &mut JNIEnv, result: &Result<T,ShmemError>) -> boo
 #[no_mangle]
 pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeCreate<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, size: jlong, flink: JString<'local>) -> jobject {
 
-    /*let size = env.get_field(&target, "size", "J")
-        .unwrap()
-        .j()
-        .unwrap();*/
-
-    // println!("doCreate(): size={}", size);
-
     let mut shmem_conf = ShmemConf::new()
         .size(size as usize);
 
@@ -61,21 +54,6 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeCreate<'
 
 #[no_mangle]
 pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeOpen<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, flink: JString<'local>, os_id: JString<'local>) -> jobject {
-
-    /*let size = env.get_field(&target, "size", "J")
-        .unwrap()
-        .j()
-        .unwrap();
-
-    let os_id = JString::from(env.get_field(&target, "osId", "Ljava/lang/String;")
-        .unwrap()
-        .l()
-        .unwrap());
-
-    let os_id_jstr = unsafe { env.get_string_unchecked(&os_id).unwrap() };
-    let os_id = os_id_jstr.to_str().unwrap();*/
-
-    // println!("doOpen(): size={}, os_id={}", size, os_id);
 
     let mut shmem_conf = ShmemConf::new();
 
