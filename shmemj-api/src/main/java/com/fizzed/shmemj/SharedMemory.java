@@ -15,20 +15,30 @@ public class SharedMemory implements Closeable {
         this.ptr = 0;
     }
 
-    public native String getOsId();
+    public String getOsId() {
+        return this.nativeGetOsId();
+    }
 
-    public native boolean isOwner();
+    public boolean isOwner() {
+        return this.nativeIsOwner();
+    }
 
-    public native long getSize();
+    public long getSize() {
+        return this.nativeGetSize();
+    }
 
     public SharedCondition newCondition(long offset, boolean autoReset) {
         this.checkConditionOffset(offset);
-        return this.doNewCondition(offset, autoReset);
+        SharedCondition c = this.nativeNewCondition(offset, autoReset);
+        c.setShmem(this);
+        return c;
     }
 
     public SharedCondition existingCondition(long offset) {
         this.checkConditionOffset(offset);
-        return this.doExistingCondition(offset);
+        SharedCondition c = this.nativeExistingCondition(offset);
+        c.setShmem(this);
+        return c;
     }
 
     private void checkConditionOffset(long offset) {
@@ -49,25 +59,39 @@ public class SharedMemory implements Closeable {
         if (offset+length > size) {
             throw new IllegalArgumentException("Offset+length " + (offset+length) + " exceeds shared memory size of " + size);
         }
-        return this.doNewByteBuffer(offset, length);
+        return this.nativeNewByteBuffer(offset, length);
     }
 
-    protected native SharedCondition doNewCondition(long offset, boolean autoReset);
-
-    protected native SharedCondition doExistingCondition(long offset);
-
-    protected native ByteBuffer doNewByteBuffer(long offset, long length);
-
-    private native void destroy();
+    public boolean isDestroyed() {
+        return this.ptr == 0;
+    }
 
     @Override
     public void close() {
-        this.destroy();
+        this.nativeDestroy();
     }
+
+    //
+    // native methods
+    //
+
+    protected native String nativeGetOsId();
+
+    protected native boolean nativeIsOwner();
+
+    protected native long nativeGetSize();
+
+    protected native SharedCondition nativeNewCondition(long offset, boolean autoReset);
+
+    protected native SharedCondition nativeExistingCondition(long offset);
+
+    protected native ByteBuffer nativeNewByteBuffer(long offset, long length);
+
+    protected native void nativeDestroy();
 
     @Override
     protected void finalize() throws Throwable {
-        this.destroy();
+        this.nativeDestroy();
     }
 
     @Override

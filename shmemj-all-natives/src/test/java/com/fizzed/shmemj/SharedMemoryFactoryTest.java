@@ -22,13 +22,24 @@ public class SharedMemoryFactoryTest {
     }
 
     @Test
-    public void createFailsWithNegativeSize() {
+    public void createFailsWithZeroSize() {
         try {
             final SharedMemory shmem = new SharedMemoryFactory()
                 .setSize(0L)
                 .create();
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("MapSizeZero"));
+        }
+    }
+
+    @Test
+    public void createFailsWithNegativeSize() {
+        try {
+            final SharedMemory shmem = new SharedMemoryFactory()
+                .setSize(-1L)
+                .create();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("cannot be negative"));
         }
     }
 

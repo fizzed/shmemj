@@ -31,7 +31,7 @@ fn handle_shmem_error<T>(env: &mut JNIEnv, result: &Result<T,ShmemError>) -> boo
 //
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_doCreate<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeCreate<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jobject {
 
     let size = env.get_field(&target, "size", "J")
         .unwrap()
@@ -52,7 +52,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_doCreate<'loca
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_doOpen<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeOpen<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jobject {
 
     let size = env.get_field(&target, "size", "J")
         .unwrap()
@@ -131,7 +131,7 @@ fn get_shmem_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> Option<&'l
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_destroy<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeDestroy<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -139,14 +139,14 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_destroy<'local>(mut e
         return; // nothing to do
     }
 
+    // clear out pointer so the java object is flagged as destroyed before we actually destroy it
+    env.set_field(&target, "ptr", "J", JValue::Long(0))
+        .unwrap();
+
     unsafe {
         let shmem_boxed = Box::from_raw(shmem.unwrap());
         drop(shmem_boxed);
     }
-
-    // clear out pointer
-    env.set_field(&target, "ptr", "J", JValue::Long(0))
-        .unwrap();
 }
 
 fn handle_shmem_invalid(env: &mut JNIEnv, shmem: &Option<&mut Shmem>) -> bool {
@@ -159,7 +159,7 @@ fn handle_shmem_invalid(env: &mut JNIEnv, shmem: &Option<&mut Shmem>) -> bool {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_isOwner<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jboolean {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeIsOwner<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jboolean {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -173,7 +173,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_isOwner<'local>(mut e
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getOsId<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jstring {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeGetOsId<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jstring {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -190,7 +190,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getOsId<'local>(mut e
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getSize<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jlong {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeGetSize<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jlong {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -204,7 +204,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_getSize<'local>(mut e
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_doNewByteBuffer<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, length: jlong) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeNewByteBuffer<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, length: jlong) -> jobject {
     let shmem = get_shmem_co_object(&mut env, &target);
 
     if handle_shmem_invalid(&mut env, &shmem) {
@@ -252,7 +252,7 @@ fn create_event_object(env: &mut JNIEnv, event_boxed: Box<dyn EventImpl>, event_
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_doNewCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, auto_reset: jboolean) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeNewCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, auto_reset: jboolean) -> jobject {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -276,7 +276,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_doNewCondition<'local
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_doExistingCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeExistingCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong) -> jobject {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -342,6 +342,10 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeDestroy<'loc
         return;     // nothing to do
     }
 
+    // clear out pointer so java object is flagged as destroyed before we actually destroy this
+    env.set_field(&target, "ptr", "J", JValue::Long(0))
+        .unwrap();
+
     unsafe {
         let event_ptr_raw = ptr as *mut *mut dyn EventImpl;
         let event_ptr_boxed = Box::from_raw(event_ptr_raw);
@@ -350,10 +354,6 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeDestroy<'loc
         drop(event_box);
         drop(event_ptr_boxed);
     }
-
-    // clear out pointer
-    env.set_field(&target, "ptr", "J", JValue::Long(0))
-        .unwrap();
 }
 
 #[no_mangle]

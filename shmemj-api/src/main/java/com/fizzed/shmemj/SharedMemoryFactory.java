@@ -13,6 +13,9 @@ public class SharedMemoryFactory {
     }
 
     public SharedMemoryFactory setSize(long size) {
+        if (size < 0) {
+            throw new IllegalArgumentException("Size cannot be negative");
+        }
         this.size = size;
         return this;
     }
@@ -27,15 +30,19 @@ public class SharedMemoryFactory {
     }
 
     public SharedMemory create() {
-        return this.doCreate();
+        return this.nativeCreate();
     }
 
     public SharedMemory open() {
-        return this.doOpen();
+        return this.nativeOpen();
     }
 
-    protected native SharedMemory doCreate();
+    //
+    // native methods
+    //
 
-    protected native SharedMemory doOpen();
+    protected native SharedMemory nativeCreate();
+
+    protected native SharedMemory nativeOpen();
 
 }
