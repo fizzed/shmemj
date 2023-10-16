@@ -65,7 +65,7 @@ public class SharedCondition implements Closeable {
             // cpu if it needs to wait for long periods of time.  We'll use a backoff strategy and put ourselves to
             // sleep, rather than continuously killing the cpu.
             // NOTE: anything less than 1 second usually results in almost instantaneous return
-            if (this.nativeAwaitMillis(50L)) {
+            if (this.nativeAwaitMillis(5L)) {
                 return true;
             }
 
@@ -73,10 +73,10 @@ public class SharedCondition implements Closeable {
                 // we will quickly try awaitAgain
             } else if (awaitCount < 80) {   // roughly up to 3 secs
                 // go to sleep for a short duration
-                Thread.sleep(50L);
+                Thread.sleep(5L);
             } else {
                 // go to sleep for a longer duration
-                Thread.sleep(500L);
+                Thread.sleep(100L);
             }
 
             // were we interrupted?

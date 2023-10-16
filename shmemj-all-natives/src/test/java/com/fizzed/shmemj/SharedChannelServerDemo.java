@@ -12,8 +12,8 @@ import java.util.concurrent.TimeUnit;
 import static com.fizzed.shmemj.DemoHelper.getStringUTF8;
 import static com.fizzed.shmemj.DemoHelper.putStringUTF8;
 
-public class SharedChannelOwnerDemo {
-    static private final Logger log = LoggerFactory.getLogger(SharedChannelOwnerDemo.class);
+public class SharedChannelServerDemo {
+    static private final Logger log = LoggerFactory.getLogger(SharedChannelServerDemo.class);
 
     static public void main(String[] args) throws Exception {
         final Path tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
@@ -27,18 +27,18 @@ public class SharedChannelOwnerDemo {
             final SharedChannel channel = SharedChannel.create(shmem);
 
             // asynchronously read responses
-            final Thread readThread = new Thread() {
+            /*final Thread readThread = new Thread() {
                 public void run() {
                     try {
                         while (true) {
                             // now we want to read from the channel!
-                            log.info("readBegin()");
+                            //log.info("readBegin()");
                             final ByteBuffer readBuffer = channel.readBegin(120, TimeUnit.SECONDS);
 
                             String recvMessage = getStringUTF8(readBuffer);
-                            log.info("Recv message: {}", recvMessage);
+                            //log.info("Recv message: {}", recvMessage);
 
-                            log.info("readEnd()");
+                            //log.info("readEnd()");
                             channel.readEnd();
                         }
                     } catch (Exception e) {
@@ -46,7 +46,7 @@ public class SharedChannelOwnerDemo {
                     }
                     log.debug("Read task exiting...");
                 }
-            };
+            };*/
 
             // we'll connect ourselves, then wait for the client
             log.info("Waiting for client process to connect...");
@@ -54,16 +54,24 @@ public class SharedChannelOwnerDemo {
             log.info("Shared channel connected with client process {}", clientPid);
 
             // okay to start reading now
-            readThread.start();;
+//            readThread.start();;
 
-            for (int i = 0; i < 20; i++) {
-                log.info("Send-recv loop #{}", i);
+            while (true) {
+                log.info("readBegin()");
+                final ByteBuffer readBuffer = channel.readBegin(120, TimeUnit.SECONDS);
+
+                String recvMessage = getStringUTF8(readBuffer);
+
+                log.info("Recv message: {}", recvMessage);
+
+                log.info("readEnd()");
+                channel.readEnd();
 
                 // we want to write to the channel!
-                log.info("writeBegin()");
+                log.info("beginWrite()");
                 final ByteBuffer writeBuffer = channel.writeBegin(120, TimeUnit.SECONDS);
 
-                String sendMessage = "Hello from loop " + i;
+                String sendMessage = recvMessage + " (this is the reply)";
                 putStringUTF8(writeBuffer, sendMessage);
                 log.info("Send message: {}", sendMessage);
 
@@ -71,12 +79,12 @@ public class SharedChannelOwnerDemo {
                 channel.writeEnd();
             }
 
-            log.info("Shutting executor down...");
+            /*log.info("Shutting executor down...");
             readThread.interrupt();
-            Thread.sleep(1000L);
+            Thread.sleep(1000L);*/
         }
 
-        log.info("Done, shmem will have been deleted");
+//        log.info("Done, shmem will have been deleted");
     }
 
 }

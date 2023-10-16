@@ -65,6 +65,9 @@ public class SharedChannel {
         if (pid == 0) {
             // we need to wait for the other party to be ready to write
             final SharedCondition condition = this.owner ? this.clientWriteCondition : this.ownerWriteCondition;
+
+            System.out.println("Waiting on condition: " + condition);
+
             boolean signaled = condition.await(timeout, unit);
             if (!signaled) {
                 throw new TimeoutException();
@@ -76,6 +79,8 @@ public class SharedChannel {
             // we must "re-signal" the condition so we can write
             condition.signal();
         }
+
+        System.out.println("Connected finishing with pid " + pid);
 
         if (pid > 0) {
             return pid;             // success, owner/client is connected
@@ -92,6 +97,7 @@ public class SharedChannel {
             throw new IllegalStateException("Only channel owners are allowed to accept (did you mean to use connect?)");
         }
 
+        System.out.println("Signaling ownerWriteCondition: " + this.ownerWriteCondition);
         this.setOwnerPid(ProcessHandle.current().pid());
         this.ownerWriteCondition.signal();
 
@@ -104,6 +110,7 @@ public class SharedChannel {
             throw new IllegalStateException("Only channel clients are allowed to connect (did you mean to use accept?)");
         }
 
+        System.out.println("Signaling clientWriteCondition: " + this.clientWriteCondition);
         this.setClientPid(ProcessHandle.current().pid());
         this.clientWriteCondition.signal();
 

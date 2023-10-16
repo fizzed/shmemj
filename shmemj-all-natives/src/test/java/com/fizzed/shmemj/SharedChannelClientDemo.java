@@ -4,7 +4,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +18,8 @@ public class SharedChannelClientDemo {
         final Path tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
         final Path flinkPath = tempDir.resolve("shared_channel_demo.shmem");
 
+        int iterations = 200000;
+
         try (final SharedMemory shmem = new SharedMemoryFactory().setFlink(flinkPath.toString()).open()) {
             log.info("Created shmem: owner={}, size={}, os_id={}", shmem.isOwner(), shmem.getSize(), shmem.getOsId());
 
@@ -28,28 +29,45 @@ public class SharedChannelClientDemo {
             final long ownerPid = channel.connect(120, TimeUnit.SECONDS);
             log.info("Shared channel connected with owner process {}", ownerPid);
 
-            for (int i = 0; i < 20; i++) {
-                log.info("readBegin()");
+            // HACK: allow server to accept..
+            Thread.sleep(1000L);
+
+            long startTime = System.currentTimeMillis();
+
+            for (int i = 0; i < iterations; i++) {
+//                log.info("Send-recv loop #{}", i);
+
+                // we want to write to the channel!
+//                log.info("writeBegin()");
+                final ByteBuffer writeBuffer = channel.writeBegin(120, TimeUnit.SECONDS);
+
+                String sendMessage = "Hello from loop " + i;
+                putStringUTF8(writeBuffer, sendMessage);
+//                log.info("Send message: {}", sendMessage);
+
+//                log.info("writeEnd()");
+                channel.writeEnd();
+
+
+                // now we want to read from the channel!
+//                log.info("readBegin()");
                 final ByteBuffer readBuffer = channel.readBegin(120, TimeUnit.SECONDS);
 
                 String recvMessage = getStringUTF8(readBuffer);
+//                log.info("Recv message: {}", recvMessage);
 
-                log.info("Recv message: {}", recvMessage);
-
-                log.info("readEnd()");
+//                log.info("readEnd()");
                 channel.readEnd();
 
-                // we want to write to the channel!
-                log.info("beginWrite()");
-                final ByteBuffer writeBuffer = channel.writeBegin(120, TimeUnit.SECONDS);
 
-                String sendMessage = recvMessage + " (this is the reply)";
-                putStringUTF8(writeBuffer, sendMessage);
-                log.info("Send message: {}", sendMessage);
 
-                log.info("writeEnd()");
-                channel.writeEnd();
+
+
+
             }
+
+            long endTime = System.currentTimeMillis();
+            log.info("Took {} ms", (endTime-startTime));
         }
 
         log.info("Done, shmem will have been closed");
