@@ -3,11 +3,13 @@ package com.fizzed.shmemj;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
@@ -22,30 +24,48 @@ public class TcpSocketServerDemo {
 
             log.info("Waiting for client connection...");
 
-            try (Socket socket = serverSocket.accept()) {
+            while (true) {
+                try (Socket socket = serverSocket.accept()) {
 
-                log.info("Client connected: {}", socket.getRemoteSocketAddress());
+                    log.info("Client connected: {}", socket.getRemoteSocketAddress());
 
-                byte[] readBuffer = new byte[200];
-                try (OutputStream output = socket.getOutputStream()) {
-                    try (InputStream input = socket.getInputStream()) {
-                        while (true) {
-                            // read request
-                            int readLen = input.read(readBuffer);
-                            String recvMessage = new String(readBuffer, 0, readLen);
+                    byte[] readBuffer = new byte[200];
+                    ByteBuffer readWrappedBuffer = ByteBuffer.wrap(readBuffer);
 
-                            //log.info("Recv message: {}", recvMessage);
+                    byte[] sendBuffer = new byte[200];
+                    ByteBuffer sendWrappedBuffer = ByteBuffer.wrap(sendBuffer);
 
-                            //log.info("readEnd()");
+                    try (OutputStream output = socket.getOutputStream()) {
+                        try (InputStream input = socket.getInputStream()) {
+                            while (true) {
+                                // read request
+                                int readLen = input.read(readBuffer);
+                                //String recvMessage = new String(readBuffer, 0, readLen);
 
-                            // we want to write to the channel!
-                            //log.info("beginWrite()");
+                                readWrappedBuffer.rewind();
+                                long iteration = readWrappedBuffer.getLong();
+                                readWrappedBuffer.getLong();
+                                readWrappedBuffer.getLong();
 
-                            // write response
-                            String sendMessage = recvMessage + " (this is the reply)";
-                            output.write(sendMessage.getBytes(StandardCharsets.UTF_8));
+                                //log.info("Recv message: {}", recvMessage);
+
+                                //log.info("readEnd()");
+
+                                // we want to write to the channel!
+                                //log.info("beginWrite()");
+
+                                // write response
+                                //                            String sendMessage = recvMessage + " (this is the reply)";
+                                //                            output.write(sendMessage.getBytes(StandardCharsets.UTF_8));
+
+                                sendWrappedBuffer.rewind();
+                                sendWrappedBuffer.putLong(iteration);
+                                output.write(sendBuffer, 0, 8);
+                            }
                         }
                     }
+                } catch (IOException e) {
+                    log.error("IO exception during client", e);
                 }
             }
         }

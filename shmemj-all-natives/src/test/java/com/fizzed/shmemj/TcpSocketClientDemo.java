@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 public class TcpSocketClientDemo {
@@ -23,6 +24,10 @@ public class TcpSocketClientDemo {
             socket.connect(new InetSocketAddress("localhost", 12244));
 
             byte[] readBuffer = new byte[200];
+            ByteBuffer readWrappedBuffer = ByteBuffer.wrap(readBuffer);
+
+            byte[] sendBuffer = new byte[200];
+            ByteBuffer sendWrappedBuffer = ByteBuffer.wrap(sendBuffer);
 
             try (OutputStream output = socket.getOutputStream()) {
                 try (InputStream input = socket.getInputStream()) {
@@ -33,19 +38,30 @@ public class TcpSocketClientDemo {
                         // send request
                         //log.info("Send-recv loop #{}", i);
 
-                        String sendMessage = "Hello from loop " + i;
+                        //String sendMessage = "Hello from loop " + i;
 
                         //log.info("writeBegin()");
                         //log.info("Send message: {}", sendMessage);
-                        output.write(sendMessage.getBytes(StandardCharsets.UTF_8));
+                        //output.write(sendMessage.getBytes(StandardCharsets.UTF_8));
                         //log.info("writeEnd()");
+
+                        sendWrappedBuffer.rewind();
+                        sendWrappedBuffer.putLong(i);
+                        sendWrappedBuffer.putLong(2L);
+                        sendWrappedBuffer.putLong(3L);
+
+                        output.write(sendBuffer, 0, 24);
+
 
                         // read response
                         // now we want to read from the channel!
                         //log.info("readBegin()");
                         int readLen = input.read(readBuffer);
 
-                        String recvMessage = new String(readBuffer, 0, readLen);
+                        readWrappedBuffer.rewind();
+                        readWrappedBuffer.getLong();
+
+                        //String recvMessage = new String(readBuffer, 0, readLen);
                         //log.info("Recv message: {}", recvMessage);
 
                         //log.info("readEnd()");

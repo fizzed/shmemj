@@ -41,8 +41,12 @@ public class SharedChannelClientDemo {
 //                log.info("writeBegin()");
                 final ByteBuffer writeBuffer = channel.writeBegin(120, TimeUnit.SECONDS);
 
-                String sendMessage = "Hello from loop " + i;
-                putStringUTF8(writeBuffer, sendMessage);
+                writeBuffer.putLong(i);
+                writeBuffer.putLong(2L);
+                writeBuffer.putLong(3L);
+
+                /*String sendMessage = "Hello from loop " + i;
+                putStringUTF8(writeBuffer, sendMessage);*/
 //                log.info("Send message: {}", sendMessage);
 
 //                log.info("writeEnd()");
@@ -53,7 +57,9 @@ public class SharedChannelClientDemo {
 //                log.info("readBegin()");
                 final ByteBuffer readBuffer = channel.readBegin(120, TimeUnit.SECONDS);
 
-                String recvMessage = getStringUTF8(readBuffer);
+                readBuffer.getLong();
+
+//                String recvMessage = getStringUTF8(readBuffer);
 //                log.info("Recv message: {}", recvMessage);
 
 //                log.info("readEnd()");
