@@ -3,7 +3,7 @@ use jni::JNIEnv;
 use jni::objects::{JObject, JString, JValue};
 use jni::sys::{jstring, jlong, jboolean, JNI_TRUE, JNI_FALSE};
 use jni::sys::jobject;
-use raw_sync::events::{Event, EventImpl, EventInit, EventState};
+use raw_sync::events::{BusyEvent, Event, EventImpl, EventInit, EventState};
 use raw_sync::Timeout;
 use shared_memory::{Shmem, ShmemConf, ShmemError};
 
@@ -268,7 +268,8 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeNewCondition<'l
 
         let auto_reset_r = JValue::Bool(auto_reset).z().unwrap();
 
-        let (event_boxed, event_size) = Event::new(mem_ptr, auto_reset_r).unwrap();
+        // let (event_boxed, event_size) = Event::new(mem_ptr, auto_reset_r).unwrap();
+        let (event_boxed, event_size) = BusyEvent::new(mem_ptr, auto_reset_r).unwrap();
 
         return create_event_object(&mut env, event_boxed, event_size);
     }
@@ -291,7 +292,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeExistingConditi
     unsafe {
         let mem_ptr = shmem.unwrap().as_ptr().offset(offset as isize);
 
-        let (event_boxed, event_size) = Event::from_existing(mem_ptr).unwrap();
+        let (event_boxed, event_size) = BusyEvent::from_existing(mem_ptr).unwrap();
 
         return create_event_object(&mut env, event_boxed, event_size);
     }
