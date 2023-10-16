@@ -65,7 +65,6 @@ public class SharedChannelServerDemo {
                 readBuffer.getLong();
 
 //                String recvMessage = getStringUTF8(readBuffer);
-//
 //                log.info("Recv message: {}", recvMessage);
 
 //                log.info("readEnd()");
@@ -76,6 +75,10 @@ public class SharedChannelServerDemo {
                 final ByteBuffer writeBuffer = channel.writeBegin(120, TimeUnit.SECONDS);
 
                 writeBuffer.putLong(iteration);
+
+//                String sendMessage = recvMessage + " (this is the reply)";
+//                putStringUTF8(writeBuffer, sendMessage);
+//                log.info("Send message: {}", sendMessage);
 
 //                String sendMessage = recvMessage + " (this is the reply)";
 //                putStringUTF8(writeBuffer, sendMessage);
