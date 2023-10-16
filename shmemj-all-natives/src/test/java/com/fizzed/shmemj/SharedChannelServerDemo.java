@@ -57,25 +57,25 @@ public class SharedChannelServerDemo {
 //            readThread.start();;
 
             while (true) {
-                log.info("readBegin()");
+//                log.info("readBegin()");
                 final ByteBuffer readBuffer = channel.readBegin(120, TimeUnit.SECONDS);
 
                 String recvMessage = getStringUTF8(readBuffer);
 
-                log.info("Recv message: {}", recvMessage);
+//                log.info("Recv message: {}", recvMessage);
 
-                log.info("readEnd()");
+//                log.info("readEnd()");
                 channel.readEnd();
 
                 // we want to write to the channel!
-                log.info("beginWrite()");
+//                log.info("beginWrite()");
                 final ByteBuffer writeBuffer = channel.writeBegin(120, TimeUnit.SECONDS);
 
                 String sendMessage = recvMessage + " (this is the reply)";
                 putStringUTF8(writeBuffer, sendMessage);
-                log.info("Send message: {}", sendMessage);
+//                log.info("Send message: {}", sendMessage);
 
-                log.info("writeEnd()");
+//                log.info("writeEnd()");
                 channel.writeEnd();
             }
 
