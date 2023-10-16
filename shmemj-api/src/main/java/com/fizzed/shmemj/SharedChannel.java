@@ -63,7 +63,6 @@ public class SharedChannel {
 
         // if the clientPid == 0, we need to wait for it to arrive
         if (pid == 0) {
-            System.out.println("Waiting on write condition...");
             // we need to wait for the other party to be ready to write
             final SharedCondition condition = this.owner ? this.clientWriteCondition : this.ownerWriteCondition;
             boolean signaled = condition.await(timeout, unit);
@@ -71,16 +70,12 @@ public class SharedChannel {
                 throw new TimeoutException();
             }
 
-            System.out.println("Signaled..");
-
             // re-fetch the pid value again to see what happened
             pid = this.owner ? this.getClientPid() : this.getOwnerPid();
 
             // we must "re-signal" the condition so we can write
             condition.signal();
         }
-
-        System.out.println("ummm pid was " + pid);
 
         if (pid > 0) {
             return pid;             // success, owner/client is connected
@@ -91,18 +86,59 @@ public class SharedChannel {
         }
     }
 
-    public long connect(long timeout, TimeUnit unit) throws IOException, InterruptedException, TimeoutException {
-        long pid = ProcessHandle.current().pid();
-
-        if (this.owner) {
-            this.setOwnerPid(pid);
-            this.ownerWriteCondition.signal();
-        } else {
-            this.setClientPid(pid);
-            this.clientWriteCondition.signal();
+    public long accept(long timeout, TimeUnit unit) throws IOException, InterruptedException, TimeoutException {
+        // only owners can accept
+        if (!this.owner) {
+            throw new IllegalStateException("Only channel owners are allowed to accept (did you mean to use connect?)");
         }
 
+        this.setOwnerPid(ProcessHandle.current().pid());
+        this.ownerWriteCondition.signal();
+
         return this.awaitConnected(timeout, unit);
+    }
+
+    public long connect(long timeout, TimeUnit unit) throws IOException, InterruptedException, TimeoutException {
+        // only clients can connect
+        if (this.owner) {
+            throw new IllegalStateException("Only channel clients are allowed to connect (did you mean to use accept?)");
+        }
+
+        this.setClientPid(ProcessHandle.current().pid());
+        this.clientWriteCondition.signal();
+
+        return this.awaitConnected(timeout, unit);
+    }
+
+    public void close() {
+        // negative 1 for process ids indicates the channel is now closed on that side
+        if (this.owner) {
+            this.setOwnerPid(-1);
+            // unblock any read/writes on client
+            this.clientWriteCondition.signal();
+            this.clientReadCondition.signal();
+        } else {
+            this.setClientPid(-1);
+            // unblock any read/writes on owner
+            this.ownerWriteCondition.signal();
+            this.ownerReadCondition.signal();
+        }
+    }
+
+    protected void checkIfClosed(boolean forWriting) throws IOException {
+        long thisPid = this.owner ? this.getOwnerPid() : this.getClientPid();
+        long otherPid = !this.owner ? this.getOwnerPid() : this.getClientPid();
+
+        // are we closed? or never connected?
+        if (thisPid <= 0) {
+            throw new ClosedChannelException();
+        }
+
+        // on writes, no point writing if we're not closed, but the other side is closed
+        // but for reading, there may be an in-flight
+        if (forWriting && otherPid <= 0) {
+            throw new ClosedChannelException();
+        }
     }
 
     public ByteBuffer writeBegin(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException {

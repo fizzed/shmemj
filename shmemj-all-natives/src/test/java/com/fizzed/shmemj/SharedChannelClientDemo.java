@@ -16,15 +16,17 @@ public class SharedChannelClientDemo {
     static private final Logger log = LoggerFactory.getLogger(SharedChannelClientDemo.class);
 
     static public void main(String[] args) throws Exception {
-        final Path flinkPath = Paths.get("/tmp/shared_channel_demo.shmem");
+        final Path tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
+        final Path flinkPath = tempDir.resolve("shared_channel_demo.shmem");
 
         try (final SharedMemory shmem = new SharedMemoryFactory().setFlink(flinkPath.toString()).open()) {
             log.info("Created shmem: owner={}, size={}, os_id={}", shmem.isOwner(), shmem.getSize(), shmem.getOsId());
 
             final SharedChannel channel = SharedChannel.create(shmem);
 
+            log.info("Will connect to owner process...");
             final long ownerPid = channel.connect(120, TimeUnit.SECONDS);
-            log.info("Connected with owner process {}", ownerPid);
+            log.info("Shared channel connected with owner process {}", ownerPid);
 
             for (int i = 0; i < 20; i++) {
                 log.info("readBegin()");

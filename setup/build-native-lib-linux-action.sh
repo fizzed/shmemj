@@ -18,6 +18,8 @@ OUTPUT_DIR="$PROJECT_DIR/shmemj-${BUILDOS}-${BUILDARCH}/src/main/resources/jne/$
 
 if [ $BUILDOS = "macos" ]; then
   cp "$PROJECT_DIR"/native/target/release/*.dylib "$OUTPUT_DIR"
+elif [ $BUILDOS = "windows" ]; then
+  cp "$PROJECT_DIR"/native/target/release/*.dll "$OUTPUT_DIR"
 else
   cp "$PROJECT_DIR"/native/target/release/*.so "$OUTPUT_DIR"
 fi

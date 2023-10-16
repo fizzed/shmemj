@@ -16,7 +16,8 @@ public class SharedChannelOwnerDemo {
     static private final Logger log = LoggerFactory.getLogger(SharedChannelOwnerDemo.class);
 
     static public void main(String[] args) throws Exception {
-        final Path flinkPath = Paths.get("/tmp/shared_channel_demo.shmem");
+        final Path tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
+        final Path flinkPath = tempDir.resolve("shared_channel_demo.shmem");
         Files.deleteIfExists(flinkPath);
 
         try (final SharedMemory shmem = new SharedMemoryFactory().setSize(8192L).setFlink(flinkPath.toString()).create()) {
@@ -47,13 +48,10 @@ public class SharedChannelOwnerDemo {
                 }
             };
 
-            log.debug("Our pid just for info sake: {}", ProcessHandle.current().pid());
-            log.debug("Channel owner pid: {}", channel.getOwnerPid());
-            log.debug("Channel client pid: {}", channel.getClientPid());
-
             // we'll connect ourselves, then wait for the client
-            final long clientPid = channel.connect(120, TimeUnit.SECONDS);
-            log.info("Connected with client process {}", clientPid);
+            log.info("Waiting for client process to connect...");
+            final long clientPid = channel.accept(120, TimeUnit.SECONDS);
+            log.info("Shared channel connected with client process {}", clientPid);
 
             // okay to start reading now
             readThread.start();;
