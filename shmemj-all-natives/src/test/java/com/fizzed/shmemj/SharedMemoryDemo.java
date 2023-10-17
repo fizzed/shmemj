@@ -1,22 +1,15 @@
 package com.fizzed.shmemj;
 
-import com.fizzed.jne.JNE;
-import com.fizzed.jne.Options;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 public class SharedMemoryDemo {
     static private final Logger log = LoggerFactory.getLogger(SharedMemoryDemo.class);
 
     static public void main(String[] args) throws Exception {
-        SharedMemory shmem = new SharedMemoryFactory()
+        Shmem shmem = new ShmemFactory()
             .setSize(2048L)
             .create();
 

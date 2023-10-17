@@ -23,7 +23,7 @@ public class SharedMemoryDemo2 {
 
         log.debug("Loaded library!");
 
-        final SharedMemory shmem = new SharedMemoryFactory()
+        final Shmem shmem = new ShmemFactory()
             .setOsId("/shmem_190754AB6F13382B")
             .open();
 

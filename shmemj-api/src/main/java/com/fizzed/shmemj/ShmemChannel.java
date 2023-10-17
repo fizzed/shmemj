@@ -1,26 +1,66 @@
 package com.fizzed.shmemj;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public class SharedChannel {
+public class ShmemChannel {
 
-    private final SharedMemory shmem;
+    abstract protected class AbstractOp implements Closeable {
+
+        final protected ByteBuffer buffer;
+
+        public AbstractOp(ByteBuffer buffer) {
+            this.buffer = buffer;
+        }
+
+        public ByteBuffer getBuffer() {
+            return buffer;
+        }
+    }
+
+    public class Read extends AbstractOp {
+
+        public Read(ByteBuffer buffer) {
+            super(buffer);
+        }
+
+        @Override
+        public void close() throws IOException {
+            ShmemChannel.this.readEnd();
+        }
+    }
+
+    public class Write extends AbstractOp {
+
+        public Write(ByteBuffer buffer) {
+            super(buffer);
+        }
+
+        @Override
+        public void close() throws IOException {
+            ShmemChannel.this.writeEnd();
+        }
+    }
+
+
+
+    private final Shmem shmem;
     private final boolean owner;
     private final ByteBuffer controlBuffer;
-    private final SharedCondition ownerWriteCondition;
-    private final SharedCondition ownerReadCondition;
-    private final SharedCondition clientWriteCondition;
-    private final SharedCondition clientReadCondition;
+    private final ShmemCondition ownerWriteCondition;
+    private final ShmemCondition ownerReadCondition;
+    private final ShmemCondition clientWriteCondition;
+    private final ShmemCondition clientReadCondition;
     private final ByteBuffer ownerBuffer;
     private final ByteBuffer clientBuffer;
 
-    public SharedChannel(SharedMemory shmem, ByteBuffer controlBuffer, SharedCondition ownerWriteCondition,
-                         SharedCondition ownerReadCondition, SharedCondition clientWriteCondition,
-                         SharedCondition clientReadCondition, ByteBuffer ownerBuffer, ByteBuffer clientBuffer) {
+    public ShmemChannel(Shmem shmem, ByteBuffer controlBuffer, ShmemCondition ownerWriteCondition,
+                        ShmemCondition ownerReadCondition, ShmemCondition clientWriteCondition,
+                        ShmemCondition clientReadCondition, ByteBuffer ownerBuffer, ByteBuffer clientBuffer) {
 
         this.shmem = shmem;
         this.owner = shmem.isOwner();
@@ -58,29 +98,18 @@ public class SharedChannel {
     }
 
     protected long awaitConnected(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException, IOException {
-        // is a client already connected?
-        long pid = this.owner ? this.getClientPid() : this.getOwnerPid();
-
-        // if the clientPid == 0, we need to wait for it to arrive
-        if (pid == 0) {
-            // we need to wait for the other party to be ready to write
-            final SharedCondition condition = this.owner ? this.clientWriteCondition : this.ownerWriteCondition;
-
-            System.out.println("Waiting on condition: " + condition);
-
-            boolean signaled = condition.await(timeout, unit);
-            if (!signaled) {
-                throw new TimeoutException();
-            }
-
-            // re-fetch the pid value again to see what happened
-            pid = this.owner ? this.getClientPid() : this.getOwnerPid();
-
-            // we must "re-signal" the condition so we can write
-            condition.signal();
+        // we need to wait for th other party to signal
+        final ShmemCondition condition = this.owner ? this.ownerWriteCondition : this.clientWriteCondition;
+        boolean signaled = condition.await(timeout, unit);
+        if (!signaled) {
+            throw new TimeoutException();
         }
 
-        System.out.println("Connected finishing with pid " + pid);
+        // since we consumed the signal above, we need to reset it so a "write" won't block
+        condition.signal();
+
+        // what happened to the other party?
+        final long pid = this.owner ? this.getClientPid() : this.getOwnerPid();
 
         if (pid > 0) {
             return pid;             // success, owner/client is connected
@@ -97,9 +126,11 @@ public class SharedChannel {
             throw new IllegalStateException("Only channel owners are allowed to accept (did you mean to use connect?)");
         }
 
-        System.out.println("Signaling ownerWriteCondition: " + this.ownerWriteCondition);
+        // set the pid to indicate our end is ready
         this.setOwnerPid(ProcessHandle.current().pid());
-        this.ownerWriteCondition.signal();
+
+        // signal the other party we are ready
+        this.clientWriteCondition.signal();
 
         return this.awaitConnected(timeout, unit);
     }
@@ -110,9 +141,11 @@ public class SharedChannel {
             throw new IllegalStateException("Only channel clients are allowed to connect (did you mean to use accept?)");
         }
 
-        System.out.println("Signaling clientWriteCondition: " + this.clientWriteCondition);
+        // set the pid to indicate our end is ready
         this.setClientPid(ProcessHandle.current().pid());
-        this.clientWriteCondition.signal();
+
+        // signal the other party we are ready
+        this.ownerWriteCondition.signal();
 
         return this.awaitConnected(timeout, unit);
     }
@@ -148,8 +181,8 @@ public class SharedChannel {
         }
     }
 
-    public ByteBuffer writeBegin(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException {
-        final SharedCondition condition = this.owner ? this.ownerWriteCondition : this.clientWriteCondition;
+    public Write write(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException {
+        final ShmemCondition condition = this.owner ? this.ownerWriteCondition : this.clientWriteCondition;
 
         // we need to wait till we are allowed to write
         boolean signaled = condition.await(timeout, unit);
@@ -160,10 +193,10 @@ public class SharedChannel {
         final ByteBuffer buffer = this.owner ? this.ownerBuffer : this.clientBuffer;
 
         buffer.rewind();
-        return buffer;
+        return new Write(buffer);
     }
 
-    public void writeEnd() {
+    protected void writeEnd() {
         if (this.owner) {
             // client may now read AND must be the only operation that occurs next
             this.clientReadCondition.signal();
@@ -173,8 +206,8 @@ public class SharedChannel {
         }
     }
 
-    public ByteBuffer readBegin(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException {
-        final SharedCondition condition = this.owner ? this.ownerReadCondition : this.clientReadCondition;
+    public Read read(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException {
+        final ShmemCondition condition = this.owner ? this.ownerReadCondition : this.clientReadCondition;
 
         // we need to wait till we are allowed to read
         boolean signaled = condition.await(timeout, unit);
@@ -185,10 +218,10 @@ public class SharedChannel {
         final ByteBuffer buffer = this.owner ? this.clientBuffer : this.ownerBuffer;
 
         buffer.rewind();
-        return buffer;
+        return new Read(buffer);
     }
 
-    public void readEnd() {
+    private void readEnd() {
         if (this.owner) {
             // client may now write
             this.clientWriteCondition.signal();
@@ -198,11 +231,11 @@ public class SharedChannel {
         }
     }
 
-    static SharedChannel create(SharedMemory shmem) {
-        final SharedCondition ownerWriteCondition;
-        final SharedCondition ownerReadCondition;
-        final SharedCondition clientWriteCondition;
-        final SharedCondition clientReadCondition;
+    static ShmemChannel create(Shmem shmem) {
+        final ShmemCondition ownerWriteCondition;
+        final ShmemCondition ownerReadCondition;
+        final ShmemCondition clientWriteCondition;
+        final ShmemCondition clientReadCondition;
 
         long offset = 0L;
 
@@ -248,7 +281,7 @@ public class SharedChannel {
         final ByteBuffer ownerBuffer = shmem.newByteBuffer(offset, ownerBufferLen);
         final ByteBuffer clientBuffer = shmem.newByteBuffer(offset+ownerBufferLen, clientBufferLen);
 
-        return new SharedChannel(shmem, controlBuffer, ownerWriteCondition, ownerReadCondition, clientWriteCondition, clientReadCondition, ownerBuffer, clientBuffer);
+        return new ShmemChannel(shmem, controlBuffer, ownerWriteCondition, ownerReadCondition, clientWriteCondition, clientReadCondition, ownerBuffer, clientBuffer);
     }
 
 }

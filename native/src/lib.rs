@@ -27,11 +27,11 @@ fn handle_shmem_error<T>(env: &mut JNIEnv, result: &Result<T,ShmemError>) -> boo
 }
 
 //
-// SharedMemoryFactory native methods
+// ShmemFactory native methods
 //
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeCreate<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, size: jlong, flink: JString<'local>) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_ShmemFactory_nativeCreate<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, size: jlong, flink: JString<'local>) -> jobject {
 
     let mut shmem_conf = ShmemConf::new()
         .size(size as usize);
@@ -39,7 +39,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeCreate<'
     if !flink.is_null() {
         let fs = env.get_string(&flink).unwrap();
         let s = fs.to_str().unwrap();
-        println!("Using flink {}", s);
+        //println!("Using flink {}", s);
         shmem_conf = shmem_conf.flink(s);
     }
 
@@ -53,21 +53,21 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeCreate<'
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemoryFactory_nativeOpen<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, flink: JString<'local>, os_id: JString<'local>) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_ShmemFactory_nativeOpen<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, flink: JString<'local>, os_id: JString<'local>) -> jobject {
 
     let mut shmem_conf = ShmemConf::new();
 
     if !flink.is_null() {
         let fs = env.get_string(&flink).unwrap();
         let s = fs.to_str().unwrap();
-        println!("Using flink {}", s);
+        //println!("Using flink {}", s);
         shmem_conf = shmem_conf.flink(s);
     }
 
     if !os_id.is_null() {
         let fs = env.get_string(&os_id).unwrap();
         let s = fs.to_str().unwrap();
-        println!("Using os_id {}", s);
+        //println!("Using os_id {}", s);
         shmem_conf = shmem_conf.os_id(s);
     }
 
@@ -90,7 +90,7 @@ fn create_shmem_object(env: &mut JNIEnv, shmem: Shmem) -> jobject {
 
     // println!("create(): shmem ptr={:p}, osid={}, byteptr={:p}", shmem_leaked, shmem_leaked.get_os_id(), shmem_leaked.as_ptr());
 
-    let shared_memory_class = env.find_class("com/fizzed/shmemj/SharedMemory").unwrap();
+    let shared_memory_class = env.find_class("com/fizzed/shmemj/Shmem").unwrap();
 
     //println!("Found shmem class: {:?}", shared_memory_class);
 
@@ -109,12 +109,12 @@ fn create_shmem_object(env: &mut JNIEnv, shmem: Shmem) -> jobject {
 }
 
 //
-// SharedMemory native methods
+// Shmem native methods
 //
 
 fn get_shmem_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> Option<&'local mut Shmem> {
 
-    // the "ptr" field on the SharedMemory class instance is the address of the companion object in rust
+    // the "ptr" field on the Shmem class instance is the address of the companion object in rust
     let ptr = env.get_field(&target, "ptr", "J")
         .unwrap()
         .j()
@@ -130,7 +130,7 @@ fn get_shmem_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> Option<&'l
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeDestroy<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
+pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeDestroy<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -150,7 +150,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeDestroy<'local>
 
 fn handle_shmem_invalid(env: &mut JNIEnv, shmem: &Option<&mut Shmem>) -> bool {
     if shmem.is_none() {
-        env.throw("SharedMemory is invalid (no native resource attached)").unwrap();
+        env.throw("Shmem is invalid (no native resource attached)").unwrap();
         return true;
     } else {
         return false;
@@ -158,7 +158,7 @@ fn handle_shmem_invalid(env: &mut JNIEnv, shmem: &Option<&mut Shmem>) -> bool {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeIsOwner<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jboolean {
+pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeIsOwner<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jboolean {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -172,7 +172,30 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeIsOwner<'local>
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeGetOsId<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jstring {
+pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeGetFlink<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jstring {
+
+    let shmem = get_shmem_co_object(&mut env, &target);
+
+    if handle_shmem_invalid(&mut env, &shmem) {
+        return JObject::null().into_raw();   // fake return since exception was thrown
+    }
+
+    let flink_path = shmem.unwrap().get_flink_path();
+
+    if flink_path.is_none() {
+        // return a null string
+        return JString::default().into_raw();
+    }
+
+    let s = flink_path.unwrap().to_str().unwrap();
+
+    let output = env.new_string(s).unwrap();
+
+    return output.into_raw();
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeGetOsId<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jstring {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -182,14 +205,13 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeGetOsId<'local>
 
     let os_id = shmem.unwrap().get_os_id();
 
-    let output = env.new_string(os_id)
-        .expect("Couldn't create java string!");
+    let output = env.new_string(os_id).unwrap();
 
     return output.into_raw();
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeGetSize<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jlong {
+pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeGetSize<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) -> jlong {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -203,7 +225,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeGetSize<'local>
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeNewByteBuffer<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, length: jlong) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeNewByteBuffer<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, length: jlong) -> jobject {
     let shmem = get_shmem_co_object(&mut env, &target);
 
     if handle_shmem_invalid(&mut env, &shmem) {
@@ -225,7 +247,7 @@ fn create_event_object(env: &mut JNIEnv, event_boxed: Box<dyn EventImpl>, event_
 
     // println!("newCondition(): event ptr={:p}, size={}", event, event_size);
 
-    let shared_condition_class = env.find_class("com/fizzed/shmemj/SharedCondition").unwrap();
+    let shared_condition_class = env.find_class("com/fizzed/shmemj/ShmemCondition").unwrap();
 
     let shcond_obj = env.new_object(&shared_condition_class, "()V", &[])
         .unwrap();
@@ -251,7 +273,7 @@ fn create_event_object(env: &mut JNIEnv, event_boxed: Box<dyn EventImpl>, event_
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeNewCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, auto_reset: jboolean) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeNewCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, auto_reset: jboolean) -> jobject {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -276,7 +298,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeNewCondition<'l
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeExistingCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeExistingCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong) -> jobject {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -303,7 +325,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedMemory_nativeExistingConditi
 //
 
 fn get_event_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> Option<&'local mut dyn EventImpl> {
-    // the "ptr" field on the SharedMemory class instance is the address of the companion object in rust
+    // the "ptr" field on the Shmem class instance is the address of the companion object in rust
     let ptr = env.get_field(&target, "ptr", "J")
         .unwrap()
         .j()
@@ -331,7 +353,7 @@ fn get_event_co_object<'local>(env: &mut JNIEnv, target: &JObject) -> Option<&'l
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeDestroy<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
+pub extern "system" fn Java_com_fizzed_shmemj_ShmemCondition_nativeDestroy<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
 
     let ptr = env.get_field(&target, "ptr", "J")
         .unwrap()
@@ -357,7 +379,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeDestroy<'loc
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeAwaitMillis<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, timeout_millis: jlong) -> jboolean {
+pub extern "system" fn Java_com_fizzed_shmemj_ShmemCondition_nativeAwaitMillis<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, timeout_millis: jlong) -> jboolean {
 
     let event_result = get_event_co_object(&mut env, &target);
 
@@ -385,7 +407,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeAwaitMillis<
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeSignal<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
+pub extern "system" fn Java_com_fizzed_shmemj_ShmemCondition_nativeSignal<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
 
     let event_result = get_event_co_object(&mut env, &target);
 
@@ -402,7 +424,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeSignal<'loca
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_SharedCondition_nativeClear<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
+pub extern "system" fn Java_com_fizzed_shmemj_ShmemCondition_nativeClear<'local>(mut env: JNIEnv<'local>, target: JObject<'local>) {
 
     let event_result = get_event_co_object(&mut env, &target);
 

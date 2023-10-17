@@ -4,11 +4,11 @@ import org.junit.jupiter.api.Test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.CoreMatchers.*;
 
-public class SharedMemoryFactoryTest {
+public class ShmemFactoryTest {
 
     @Test
     public void create() {
-        final SharedMemory shmem = new SharedMemoryFactory()
+        final Shmem shmem = new ShmemFactory()
              .setSize(2048L)
              .create();
 
@@ -24,7 +24,7 @@ public class SharedMemoryFactoryTest {
     @Test
     public void createFailsWithZeroSize() {
         try {
-            final SharedMemory shmem = new SharedMemoryFactory()
+            final Shmem shmem = new ShmemFactory()
                 .setSize(0L)
                 .create();
         } catch (Exception e) {
@@ -35,7 +35,7 @@ public class SharedMemoryFactoryTest {
     @Test
     public void createFailsWithNegativeSize() {
         try {
-            final SharedMemory shmem = new SharedMemoryFactory()
+            final Shmem shmem = new ShmemFactory()
                 .setSize(-1L)
                 .create();
         } catch (IllegalArgumentException e) {
@@ -46,12 +46,12 @@ public class SharedMemoryFactoryTest {
     @Test
     public void open() {
         // create 2 shared mems
-        final SharedMemory shmem1 = new SharedMemoryFactory()
+        final Shmem shmem1 = new ShmemFactory()
             .setSize(2048L)
             .create();
 
         try {
-            final SharedMemory shmem2 = new SharedMemoryFactory()
+            final Shmem shmem2 = new ShmemFactory()
                 .setOsId(shmem1.getOsId())
                 .open();
 
@@ -72,7 +72,7 @@ public class SharedMemoryFactoryTest {
     @Test
     public void openFailsWithNonExistingId() {
         try {
-            final SharedMemory shmem = new SharedMemoryFactory()
+            final Shmem shmem = new ShmemFactory()
                 .setOsId("/shmem_thisdoesnotexist")
                 .open();
         } catch (Exception e) {

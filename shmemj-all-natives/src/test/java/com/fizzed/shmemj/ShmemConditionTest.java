@@ -9,15 +9,15 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
 
-public class SharedConditionTest {
+public class ShmemConditionTest {
 
     @Test
     public void destroyingShmemInvalidatesNativeCalls() throws Exception {
-        final SharedMemory shmem = new SharedMemoryFactory()
+        final Shmem shmem = new ShmemFactory()
             .setSize(2048L)
             .create();
 
-        final SharedCondition condition = shmem.newCondition(0, true);
+        final ShmemCondition condition = shmem.newCondition(0, true);
 
         try {
             // closing the shared memory makes the condition impossible to use (its methods should fail, not segfault)
@@ -49,11 +49,11 @@ public class SharedConditionTest {
 
     @Test
     public void destroyingConditionInvalidatesNativeCalls() throws Exception {
-        final SharedMemory shmem = new SharedMemoryFactory()
+        final Shmem shmem = new ShmemFactory()
             .setSize(2048L)
             .create();
 
-        final SharedCondition condition = shmem.newCondition(0, true);
+        final ShmemCondition condition = shmem.newCondition(0, true);
 
         try {
             // closing the shared memory makes the condition impossible to use (its methods should fail, not segfault)
@@ -85,11 +85,11 @@ public class SharedConditionTest {
 
     @Test
     public void awaitIsInterruptible() throws Exception {
-        final SharedMemory shmem = new SharedMemoryFactory()
+        final Shmem shmem = new ShmemFactory()
             .setSize(2048L)
             .create();
 
-        final SharedCondition condition = shmem.newCondition(0, true);
+        final ShmemCondition condition = shmem.newCondition(0, true);
 
         try {
             final CountDownLatch interruptedLatch = new CountDownLatch(1);

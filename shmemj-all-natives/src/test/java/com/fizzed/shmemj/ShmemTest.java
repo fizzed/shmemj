@@ -9,11 +9,11 @@ import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class SharedMemoryTest {
+public class ShmemTest {
 
     @Test
     public void destroyInvalidatesOtherMethods() {
-        final SharedMemory shmem = new SharedMemoryFactory()
+        final Shmem shmem = new ShmemFactory()
             .setSize(2048L)
             .create();
 
@@ -51,7 +51,7 @@ public class SharedMemoryTest {
 
     @Test
     public void destroyingMulipleTimes() {
-        final SharedMemory shmem = new SharedMemoryFactory()
+        final Shmem shmem = new ShmemFactory()
             .setSize(2048L)
             .create();
 
@@ -67,7 +67,7 @@ public class SharedMemoryTest {
 
     @Test
     public void newByteBuffer() {
-        final SharedMemory shmem = new SharedMemoryFactory()
+        final Shmem shmem = new ShmemFactory()
              .setSize(2048L)
              .create();
 
@@ -93,12 +93,12 @@ public class SharedMemoryTest {
 
     @Test
     public void newCondition() throws Exception {
-        final SharedMemory shmem = new SharedMemoryFactory()
+        final Shmem shmem = new ShmemFactory()
             .setSize(2048L)
             .create();
 
         try {
-            final SharedCondition condition1 = shmem.newCondition(0, true);
+            final ShmemCondition condition1 = shmem.newCondition(0, true);
 
             assertThat(condition1.getSize(), greaterThan(1L));
 

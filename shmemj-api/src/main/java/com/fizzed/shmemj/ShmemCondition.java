@@ -1,13 +1,10 @@
 package com.fizzed.shmemj;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-public class SharedCondition implements Closeable {
+public class ShmemCondition implements Closeable {
     static {
         LibraryLoader.loadLibrary();
     }
@@ -21,15 +18,15 @@ public class SharedCondition implements Closeable {
      * Also, if the caller is relying on GC to close it, keeping a reference here will help prevent that until both
      * this condition AND the shmem are ready for GC.
      */
-    private SharedMemory shmem;
+    private Shmem shmem;
 
-    public SharedCondition() {
+    public ShmemCondition() {
         this.ptr = 0;
         this.size = 0;
     }
 
     // package-level access
-    void setShmem(SharedMemory shmem) {
+    void setShmem(Shmem shmem) {
         this.shmem = shmem;
     }
 
@@ -65,7 +62,7 @@ public class SharedCondition implements Closeable {
             // cpu if it needs to wait for long periods of time.  We'll use a backoff strategy and put ourselves to
             // sleep, rather than continuously killing the cpu.
             // NOTE: anything less than 1 second usually results in almost instantaneous return
-            if (this.nativeAwaitMillis(0L)) {
+            if (this.nativeAwaitMillis(10L)) {
                 return true;
             }
 
@@ -112,7 +109,7 @@ public class SharedCondition implements Closeable {
 
     @Override
     public String toString() {
-        return "SharedCondition{" +
+        return "ShmemCondition{" +
             "ptr=" + ptr +
             ", size=" + size +
             '}';
