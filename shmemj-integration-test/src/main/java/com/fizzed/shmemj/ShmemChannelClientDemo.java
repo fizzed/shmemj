@@ -25,7 +25,7 @@ public class ShmemChannelClientDemo {
 
             log.info("Created shmem: owner={}, size={}, os_id={}, flink={}", shmem.isOwner(), shmem.getSize(), shmem.getOsId(), shmem.getFlink());
 
-            final ShmemChannel channel = ShmemChannel.create(shmem);
+            final ShmemChannel channel = ShmemChannel.existing(shmem);
 
             log.info("Connecting to owner process...");
 
@@ -44,10 +44,6 @@ public class ShmemChannelClientDemo {
                     writeBuffer.putLong(2L);
                     writeBuffer.putLong(3L);
 
-                    /*String sendMessage = "Hello from loop " + i;
-                    putStringUTF8(writeBuffer, sendMessage);*/
-                    //                log.info("Send message: {}", sendMessage);
-
                     if (debug) log.info("writeEnd(): sent request #{} ({} bytes)", i, writeBuffer.position());
                 }
 
@@ -59,9 +55,6 @@ public class ShmemChannelClientDemo {
                     if (debug) log.info("readEnd(): received response #{} ({} bytes)", i, readBuffer.remaining());
 
                     readBuffer.getLong();
-
-                    //                String recvMessage = getStringUTF8(readBuffer);
-                    //                log.info("Recv message: {}", recvMessage);
                 }
             }
 

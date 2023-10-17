@@ -30,7 +30,7 @@ public class ShmemChannelServerDemo {
 
             log.info("Created shmem: owner={}, size={}, os_id={}, flink={}", shmem.isOwner(), shmem.getSize(), shmem.getOsId(), shmem.getFlink());
 
-            final ShmemChannel channel = ShmemChannel.create(shmem);
+            final ShmemChannel channel = ShmemChannel.create(shmem, false);
 
             // we'll connect ourselves, then wait for the client
             log.info("Waiting for client process to connect...");
@@ -44,28 +44,26 @@ public class ShmemChannelServerDemo {
                 long iteration = 0;
 
                 if (debug) log.info("readBegin(): waiting for request #{}", count);
+
                 try (final ShmemChannel.Read read = channel.read(120, TimeUnit.SECONDS)) {
                     final ByteBuffer readBuffer = read.getBuffer();
+
+                    if (debug) log.info("readEnd(): received request #{} ({} bytes)", iteration, readBuffer.remaining());
+
                     iteration = readBuffer.getLong();
                     readBuffer.getLong();
                     readBuffer.getLong();
-                    //                String recvMessage = getStringUTF8(readBuffer);
-                    //                log.info("Recv message: {}", recvMessage);
-
-                    if (debug) log.info("readEnd(): received request #{}", iteration);
                 }
 
                 // we want to write to the channel!
                 if (debug) log.info("beginWrite(): want to send response #{}", iteration);
+
                 try (final ShmemChannel.Write write = channel.write(120, TimeUnit.SECONDS)) {
                     final ByteBuffer writeBuffer = write.getBuffer();
+
                     writeBuffer.putLong(iteration);
 
-//                String sendMessage = recvMessage + " (this is the reply)";
-//                putStringUTF8(writeBuffer, sendMessage);
-//                log.info("Send message: {}", sendMessage);
-
-                    if (debug) log.info("writeEnd(): sent response #{}", iteration);
+                    if (debug) log.info("writeEnd(): sent response #{} ({} bytes)", iteration, writeBuffer.position());
                 }
 
                 count++;

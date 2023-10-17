@@ -32,16 +32,16 @@ public class Shmem implements Closeable {
         return this.nativeGetSize();
     }
 
-    public ShmemCondition newCondition(long offset, boolean autoReset) {
+    public ShmemCondition newCondition(long offset, boolean spinLock, boolean autoReset) {
         this.checkConditionOffset(offset);
-        ShmemCondition c = this.nativeNewCondition(offset, autoReset);
+        ShmemCondition c = this.nativeNewCondition(offset, spinLock, autoReset);
         c.setShmem(this);
         return c;
     }
 
-    public ShmemCondition existingCondition(long offset) {
+    public ShmemCondition existingCondition(long offset, boolean spinLock) {
         this.checkConditionOffset(offset);
-        ShmemCondition c = this.nativeExistingCondition(offset);
+        ShmemCondition c = this.nativeExistingCondition(offset, spinLock);
         c.setShmem(this);
         return c;
     }
@@ -88,9 +88,9 @@ public class Shmem implements Closeable {
 
     protected native long nativeGetSize();
 
-    protected native ShmemCondition nativeNewCondition(long offset, boolean autoReset);
+    protected native ShmemCondition nativeNewCondition(long offset, boolean spinLock, boolean autoReset);
 
-    protected native ShmemCondition nativeExistingCondition(long offset);
+    protected native ShmemCondition nativeExistingCondition(long offset, boolean spinLock);
 
     protected native ByteBuffer nativeNewByteBuffer(long offset, long length);
 

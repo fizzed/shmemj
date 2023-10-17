@@ -15,6 +15,14 @@ fn to_jboolean(v: bool) -> jboolean {
     }
 }
 
+fn from_jboolean(v: jboolean) -> bool {
+    if v == JNI_TRUE {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 fn handle_shmem_error<T>(env: &mut JNIEnv, result: &Result<T,ShmemError>) -> bool {
     if result.is_err() {
         let error = result.as_ref().err().unwrap();
@@ -273,7 +281,7 @@ fn create_event_object(env: &mut JNIEnv, event_boxed: Box<dyn EventImpl>, event_
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeNewCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, auto_reset: jboolean) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeNewCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, spin_lock: jboolean, auto_reset: jboolean) -> jobject {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -282,23 +290,27 @@ pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeNewCondition<'local>(m
     }
 
     //
-    // create an "Event" that we'll associate with a SharedCondition
+    // create an "Event" that we'll associate with a ShmemCondition
     //
     //
     unsafe {
         let mem_ptr = shmem.unwrap().as_ptr().offset(offset as isize);
 
-        let auto_reset_r = JValue::Bool(auto_reset).z().unwrap();
+        let spin_lock_r = from_jboolean(spin_lock);
+        let auto_reset_r = from_jboolean(auto_reset);
 
-        // let (event_boxed, event_size) = Event::new(mem_ptr, auto_reset_r).unwrap();
-        let (event_boxed, event_size) = BusyEvent::new(mem_ptr, auto_reset_r).unwrap();
-
-        return create_event_object(&mut env, event_boxed, event_size);
+        if spin_lock_r {
+            let (event_boxed, event_size) = BusyEvent::new(mem_ptr, auto_reset_r).unwrap();
+            return create_event_object(&mut env, event_boxed, event_size);
+        } else {
+            let (event_boxed, event_size) = Event::new(mem_ptr, auto_reset_r).unwrap();
+            return create_event_object(&mut env, event_boxed, event_size);
+        }
     }
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeExistingCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeExistingCondition<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, offset: jlong, spin_lock: jboolean) -> jobject {
 
     let shmem = get_shmem_co_object(&mut env, &target);
 
@@ -307,12 +319,22 @@ pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeExistingCondition<'loc
     }
 
     //
-    // create an "Event" that we'll associate with a SharedCondition
+    // create an "Event" that we'll associate with a ShmemCondition
     //
     //
 
     unsafe {
         let mem_ptr = shmem.unwrap().as_ptr().offset(offset as isize);
+
+        let spin_lock_r = from_jboolean(spin_lock);
+
+        if spin_lock_r {
+            let (event_boxed, event_size) = BusyEvent::from_existing(mem_ptr).unwrap();
+            return create_event_object(&mut env, event_boxed, event_size);
+        } else {
+            let (event_boxed, event_size) = Event::from_existing(mem_ptr).unwrap();
+            return create_event_object(&mut env, event_boxed, event_size);
+        }
 
         let (event_boxed, event_size) = BusyEvent::from_existing(mem_ptr).unwrap();
 

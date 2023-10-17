@@ -17,7 +17,7 @@ public class ShmemConditionTest {
             .setSize(2048L)
             .create();
 
-        final ShmemCondition condition = shmem.newCondition(0, true);
+        final ShmemCondition condition = shmem.newCondition(0, true, true);
 
         try {
             // closing the shared memory makes the condition impossible to use (its methods should fail, not segfault)
@@ -53,7 +53,7 @@ public class ShmemConditionTest {
             .setSize(2048L)
             .create();
 
-        final ShmemCondition condition = shmem.newCondition(0, true);
+        final ShmemCondition condition = shmem.newCondition(0, true, true);
 
         try {
             // closing the shared memory makes the condition impossible to use (its methods should fail, not segfault)
@@ -84,12 +84,48 @@ public class ShmemConditionTest {
     }
 
     @Test
-    public void awaitIsInterruptible() throws Exception {
+    public void awaitIsInterruptibleWithStandardLock() throws Exception {
         final Shmem shmem = new ShmemFactory()
             .setSize(2048L)
             .create();
 
-        final ShmemCondition condition = shmem.newCondition(0, true);
+        final ShmemCondition condition = shmem.newCondition(0, false, true);
+
+        try {
+            final CountDownLatch interruptedLatch = new CountDownLatch(1);
+            // fire up a thread that will wait on the condition
+            final Thread t = new Thread() {
+                public void run() {
+                    try {
+                        condition.await(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        // this is what we expect, we'll return from here too
+                        interruptedLatch.countDown();
+                    }
+                }
+            };
+            t.start();
+
+            // interrupt thread, countdown latch should be invoked
+            t.interrupt();
+
+            if (!interruptedLatch.await(5, TimeUnit.SECONDS)) {
+                fail("await was NOT interrupted");
+            }
+        } finally {
+            // we can still close condition and shmem again though
+            condition.close();
+            shmem.close();
+        }
+    }
+
+    @Test
+    public void awaitIsInterruptibleWithSpinLock() throws Exception {
+        final Shmem shmem = new ShmemFactory()
+            .setSize(2048L)
+            .create();
+
+        final ShmemCondition condition = shmem.newCondition(0, true, true);
 
         try {
             final CountDownLatch interruptedLatch = new CountDownLatch(1);

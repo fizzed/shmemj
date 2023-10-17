@@ -29,6 +29,7 @@
         <module>shmemj-windows-x64</module>
         <module>shmemj-bom</module>
         <module>shmemj-all-natives</module>
+        <module>shmemj-integration-test</module>
     </modules>
 
     <dependencyManagement>
@@ -37,6 +38,12 @@
             <dependency>
                 <groupId>com.fizzed</groupId>
                 <artifactId>shmemj-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-all-natives</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

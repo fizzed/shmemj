@@ -9,6 +9,14 @@ import java.util.concurrent.TimeoutException;
 
 public class ShmemChannel {
 
+    static private final int CONTROL_BUFFER_SIZE = 17;
+    static private final int CONTROL_OWNER_PID_POS = 0;
+    static private final int CONTROL_CLIENT_PID_POS = 8;
+    static private final int CONTROL_SPIN_LOCK_POS = 16;
+
+    static private final byte STANDARD_LOCK = (byte)0;
+    static private final byte SPIN_LOCK = (byte)1;
+
     abstract protected class AbstractOp implements Closeable {
 
         final protected ByteBuffer buffer;
@@ -231,7 +239,15 @@ public class ShmemChannel {
         }
     }
 
-    static ShmemChannel create(Shmem shmem) {
+    static ShmemChannel create(Shmem shmem, boolean spinLock) {
+        return createOrExisting(shmem, spinLock);
+    }
+
+    static ShmemChannel existing(Shmem shmem) {
+        return createOrExisting(shmem, false);  // spinLock argument irr
+    }
+
+    static private ShmemChannel createOrExisting(Shmem shmem, Boolean spinLock) {
         final ShmemCondition ownerWriteCondition;
         final ShmemCondition ownerReadCondition;
         final ShmemCondition clientWriteCondition;
@@ -239,37 +255,43 @@ public class ShmemChannel {
 
         long offset = 0L;
 
-        // control buffer is 16 bytes (8 bytes for 2 pids)
-        final ByteBuffer controlBuffer = shmem.newByteBuffer(offset, 16);
-        offset += 16;
+        // control buffer is 17 bytes (8 bytes for 2 pids, 1 byte for spinLocks)
+        final ByteBuffer controlBuffer = shmem.newByteBuffer(offset, CONTROL_BUFFER_SIZE);
+        offset += controlBuffer.capacity();
 
         if (shmem.isOwner()) {
-            ownerWriteCondition = shmem.newCondition(offset, true);
+            final boolean usingSpinLock = spinLock != null ? spinLock : false;
+
+            ownerWriteCondition = shmem.newCondition(offset, usingSpinLock, true);
             offset += ownerWriteCondition.getSize();
 
-            ownerReadCondition = shmem.newCondition(offset, true);
+            ownerReadCondition = shmem.newCondition(offset, usingSpinLock, true);
             offset += ownerReadCondition.getSize();
 
-            clientWriteCondition = shmem.newCondition(offset, true);
+            clientWriteCondition = shmem.newCondition(offset, usingSpinLock, true);
             offset += clientWriteCondition.getSize();
 
-            clientReadCondition = shmem.newCondition(offset, true);
+            clientReadCondition = shmem.newCondition(offset, usingSpinLock, true);
             offset += clientReadCondition.getSize();
 
-            // zero out control buffer
-            controlBuffer.putLong(0, 0);
-            controlBuffer.putLong(1, 0);
+            // zero out control buffer, set spin lock used
+            controlBuffer.putLong(CONTROL_OWNER_PID_POS, 0);
+            controlBuffer.putLong(CONTROL_CLIENT_PID_POS, 0);
+            controlBuffer.put(CONTROL_SPIN_LOCK_POS, usingSpinLock ? SPIN_LOCK : STANDARD_LOCK);
         } else {
-            ownerWriteCondition = shmem.existingCondition(offset);
+            // the control buffer will help figure out if it's using SPIN vs. STANDARD locks
+            final boolean usingSpinLock = controlBuffer.get(CONTROL_SPIN_LOCK_POS) == SPIN_LOCK;
+
+            ownerWriteCondition = shmem.existingCondition(offset, usingSpinLock);
             offset += ownerWriteCondition.getSize();
 
-            ownerReadCondition = shmem.existingCondition(offset);
+            ownerReadCondition = shmem.existingCondition(offset, usingSpinLock);
             offset += ownerReadCondition.getSize();
 
-            clientWriteCondition = shmem.existingCondition(offset);
+            clientWriteCondition = shmem.existingCondition(offset, usingSpinLock);
             offset += clientWriteCondition.getSize();
 
-            clientReadCondition = shmem.existingCondition(offset);
+            clientReadCondition = shmem.existingCondition(offset, usingSpinLock);
             offset += clientReadCondition.getSize();
         }
 

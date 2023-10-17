@@ -39,7 +39,7 @@ public class ShmemTest {
             }
 
             try {
-                shmem.newCondition(1L, true);
+                shmem.newCondition(1L, true, true);
             } catch (Exception e) {
                 assertThat(e.getMessage(), containsString("no native resource"));
             }
@@ -92,13 +92,13 @@ public class ShmemTest {
     }
 
     @Test
-    public void newCondition() throws Exception {
+    public void newConditionWithStandardLock() throws Exception {
         final Shmem shmem = new ShmemFactory()
             .setSize(2048L)
             .create();
 
         try {
-            final ShmemCondition condition1 = shmem.newCondition(0, true);
+            final ShmemCondition condition1 = shmem.newCondition(0, false, true);
 
             assertThat(condition1.getSize(), greaterThan(1L));
 
