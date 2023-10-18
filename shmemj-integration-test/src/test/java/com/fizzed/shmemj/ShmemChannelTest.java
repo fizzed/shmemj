@@ -11,6 +11,7 @@ import java.util.concurrent.*;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.jupiter.api.Assertions.fail;
 
 public class ShmemChannelTest {
@@ -232,7 +233,7 @@ public class ShmemChannelTest {
                 }
 
                 // we should not allow accept to have side effects of making us look like we're ready
-                // owner pid should be zero
+
                 assertThat(serverChannel.getServerPid(), is(0L));
                 // the client connect should timeout
                 try {
@@ -244,16 +245,63 @@ public class ShmemChannelTest {
 
                 // async mimic an owner accepting connections
                 final Future<?> acceptFuture = this.async(() -> {
+                    log.debug("About to accept...");
+
                     long clientPid = serverChannel.accept(3, TimeUnit.SECONDS);
+
+                    log.debug("Client connected!");
 
                     assertThat(clientPid, is(serverChannel.getServerPid()));
                 });
 
-                final long ownerPid = clientChannel.connect(5, TimeUnit.SECONDS);
+                log.debug("Connecting...");
 
-                assertThat(ownerPid, is(serverChannel.getServerPid()));
+                final long serverPid = clientChannel.connect(5, TimeUnit.SECONDS);
+
+                log.debug("Connected!");
+
+                assertThat(serverPid, is(serverChannel.getServerPid()));
 
                 acceptFuture.get(5, TimeUnit.SECONDS);
+            } finally {
+                clientShmem.close();
+                serverShmem.close();
+            }
+        });
+    }
+
+    @Test
+    public void acceptCloseAccept() throws Exception {
+        this.createChannels((serverShmem, serverChannel, clientShmem, clientChannel) -> {
+            try {
+                // start server accept
+                final Future<?> acceptFuture1 = this.async(() -> {
+                    long clientPid = serverChannel.accept(2, TimeUnit.SECONDS);
+                    log.debug("Accept #1: clientPid={}", clientPid);
+                    assertThat(clientPid, greaterThan(0L));
+                });
+
+                // client connects
+                clientChannel.connect(5, TimeUnit.SECONDS);
+
+                // server accept should finish
+                this.awaitSecs(acceptFuture1, 5);
+
+                clientChannel.close();
+                serverChannel.close();
+
+                // server should be able to "accept" again
+                final Future<?> acceptFuture2 = this.async(() -> {
+                    long clientPid = serverChannel.accept(2, TimeUnit.SECONDS);
+                    log.debug("Accept #2: clientPid={}", clientPid);
+                    assertThat(clientPid, greaterThan(0L));
+                });
+
+                // client connects again
+                clientChannel.connect(5, TimeUnit.SECONDS);
+
+                // server accept should finish
+                this.awaitSecs(acceptFuture2, 5);
             } finally {
                 clientShmem.close();
                 serverShmem.close();

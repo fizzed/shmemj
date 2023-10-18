@@ -190,12 +190,19 @@ public class ShmemChannel implements AutoCloseable {
     public long accept(long timeout, TimeUnit unit) throws IOException, InterruptedException, TimeoutException {
         this.checkShmem();
 
-        // only owners can accept
+        // only servers can accept
         if (!this.server) {
             throw new IllegalStateException("Only channel owners are allowed to accept (did you mean to use connect?)");
         }
 
         this.connecting.set(true);
+
+        // clear all signals
+        this.serverWriteCondition.clear();
+        this.serverReadCondition.clear();
+        this.clientWriteCondition.clear();
+        this.clientReadCondition.clear();
+
         try {
             // set the pid to indicate our end is ready
             this.control.setServerPid(ProcessHandle.current().pid());
@@ -203,7 +210,11 @@ public class ShmemChannel implements AutoCloseable {
             this.clientWriteCondition.signal();
 
             try {
-                return this.awaitConnected(timeout, unit);
+                long clientPid = this.awaitConnected(timeout, unit);
+
+                this.shmem.addCloseable(this);
+
+                return clientPid;
             } catch (TimeoutException e) {
                 // back out side effects
                 this.clientWriteCondition.clear();
@@ -231,7 +242,11 @@ public class ShmemChannel implements AutoCloseable {
             this.serverWriteCondition.signal();
 
             try {
-                return this.awaitConnected(timeout, unit);
+                long serverPid = this.awaitConnected(timeout, unit);
+
+                this.shmem.addCloseable(this);
+
+                return serverPid;
             } catch (TimeoutException e) {
                 // back out side effects
                 this.serverWriteCondition.clear();
@@ -240,6 +255,30 @@ public class ShmemChannel implements AutoCloseable {
             }
         } finally {
             this.connecting.set(false);
+        }
+    }
+
+    protected boolean isServerClosed() throws IOException {
+        this.checkShmem();
+
+        final long serverPid = this.control.getServerPid();
+
+        return serverPid <= 0;
+    }
+
+    protected boolean isClientClosed() throws IOException {
+        this.checkShmem();
+
+        final long clientPid = this.control.getClientPid();
+
+        return clientPid <= 0;
+    }
+
+    protected void checkClosed(boolean forWriting) throws IOException {
+        this.checkShmem();
+
+        if (this.isServerClosed() || this.isClientClosed()) {
+            throw new ClosedChannelException();
         }
     }
 
@@ -252,11 +291,11 @@ public class ShmemChannel implements AutoCloseable {
         // TODO: should we ignore a bad shmem and mark this as closed?
         this.checkShmem();
 
-        // negative 1 for process ids indicates the channel is now closed on that side
+        // mark the side that is initiating the close
         if (this.server) {
-            this.control.setServerPid(-1);
+            this.control.setServerPid(0L);
         } else {
-            this.control.setClientPid(-1);
+            this.control.setClientPid(0L);
         }
 
         // unblock any read/writes on client & owner
@@ -277,30 +316,6 @@ public class ShmemChannel implements AutoCloseable {
     protected void checkShmem() {
         if (this.shmem.isDestroyed()) {
             throw new IllegalStateException("Shared memory backing this channel is destroyed (you should ensure you have closed the channel before the shared memory!)");
-        }
-    }
-
-    protected void checkClosed(boolean forWriting) throws IOException {
-        // TODO: we could mark this as closed with a boolean, so we can avoid relying on native shmem?
-
-        this.checkShmem();
-
-        long thisPid = this.server ? this.control.getServerPid() : this.control.getClientPid();
-        long otherPid = !this.server ? this.control.getServerPid() : this.control.getClientPid();
-
-        // are we closed? or never connected?
-        if (thisPid < 0) {
-            throw new ClosedChannelException();
-        } else if (thisPid == 0) {
-            throw new NotYetConnectedException();
-        }
-
-        // on writes, no point writing if we're not closed, but the other side is closed
-        // but for reading, there may be an in-flight
-        if (otherPid < 0) {
-            throw new ClosedChannelException();
-        } else if (otherPid == 0) {
-            throw new NotYetConnectedException();
         }
     }
 
@@ -460,7 +475,7 @@ public class ShmemChannel implements AutoCloseable {
         final ByteBuffer ownerBuffer = shmem.newByteBuffer(offset, ownerBufferLen);
         final ByteBuffer clientBuffer = shmem.newByteBuffer(offset+ownerBufferLen, clientBufferLen);
 
-        final ShmemChannel channel = new ShmemChannel(shmem, control, serverWriteCondition, serverReadCondition, clientWriteCondition, clientReadCondition, ownerBuffer, clientBuffer);
+        ShmemChannel channel = new ShmemChannel(shmem, control, serverWriteCondition, serverReadCondition, clientWriteCondition, clientReadCondition, ownerBuffer, clientBuffer);
 
         shmem.addCloseable(channel);
 

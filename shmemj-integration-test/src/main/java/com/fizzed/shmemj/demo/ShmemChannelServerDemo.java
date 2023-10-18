@@ -42,48 +42,51 @@ public class ShmemChannelServerDemo {
                 .setSpinLocks(true)
                 .create();
 
-            try (final ShmemChannel c = channel) {
+            while (!shutdown) {
+                try (final ShmemChannel c = channel) {
+                    // we'll connect ourselves, then wait for the client
+                    log.info("Waiting for client process to connect...");
 
-                // we'll connect ourselves, then wait for the client
-                log.info("Waiting for client process to connect...");
+                    final long clientPid = channel.accept(120, TimeUnit.SECONDS);
 
-                final long clientPid = channel.accept(120, TimeUnit.SECONDS);
+                    log.info("Connected with client process {}", clientPid);
 
-                log.info("Connected with client process {}", clientPid);
+                    int count = 0;
+                    while (!shutdown) {
+                        long iteration = 0;
 
-                int count = 0;
-                while (!shutdown) {
-                    long iteration = 0;
+                        if (debug) log.info("readBegin(): waiting for request #{}", count);
 
-                    if (debug) log.info("readBegin(): waiting for request #{}", count);
+                        try (final ShmemChannel.Read read = channel.read(120, TimeUnit.SECONDS)) {
+                            final ByteBuffer readBuffer = read.getBuffer();
 
-                    try (final ShmemChannel.Read read = channel.read(120, TimeUnit.SECONDS)) {
-                        final ByteBuffer readBuffer = read.getBuffer();
+                            if (debug)
+                                log.info("readEnd(): received request #{} ({} bytes)", iteration, readBuffer.remaining());
 
-                        if (debug) log.info("readEnd(): received request #{} ({} bytes)", iteration, readBuffer.remaining());
+                            iteration = readBuffer.getLong();
+                            long v2 = readBuffer.getLong();
+                            long v3 = readBuffer.getLong();
 
-                        iteration = readBuffer.getLong();
-                        long v2 = readBuffer.getLong();
-                        long v3 = readBuffer.getLong();
+                            if (debug) log.info(" iteration={}, v2={}, v3={}", iteration, v2, v3);
+                        }
 
-                        if (debug) log.info(" iteration={}, v2={}, v3={}", iteration, v2, v3);
+                        // we want to write to the channel!
+                        if (debug) log.info("beginWrite(): want to send response #{}", iteration);
+
+                        try (final ShmemChannel.Write write = channel.write(120, TimeUnit.SECONDS)) {
+                            final ByteBuffer writeBuffer = write.getBuffer();
+
+                            writeBuffer.putLong(iteration);
+
+                            if (debug)
+                                log.info("writeEnd(): sent response #{} ({} bytes)", iteration, writeBuffer.position());
+                        }
+
+                        count++;
                     }
-
-                    // we want to write to the channel!
-                    if (debug) log.info("beginWrite(): want to send response #{}", iteration);
-
-                    try (final ShmemChannel.Write write = channel.write(120, TimeUnit.SECONDS)) {
-                        final ByteBuffer writeBuffer = write.getBuffer();
-
-                        writeBuffer.putLong(iteration);
-
-                        if (debug) log.info("writeEnd(): sent response #{} ({} bytes)", iteration, writeBuffer.position());
-                    }
-
-                    count++;
+                } catch (ClosedChannelException e) {
+                    log.info("Channel closed");
                 }
-            } catch (ClosedChannelException e) {
-                log.info("Channel closed");
             }
         }
 
