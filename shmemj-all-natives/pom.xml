@@ -49,6 +49,11 @@
             <artifactId>shmemj-windows-x64</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.fizzed</groupId>
+            <artifactId>shmemj-windows-x32</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>

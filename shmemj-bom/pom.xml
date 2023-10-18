@@ -79,6 +79,12 @@
                 <version>${project.version}</version>
             </dependency>
 
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-windows-x32</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
             <!--<dependency>
                 <groupId>com.fizzed</groupId>
                 <artifactId>shmemj-windows-arm64</artifactId>

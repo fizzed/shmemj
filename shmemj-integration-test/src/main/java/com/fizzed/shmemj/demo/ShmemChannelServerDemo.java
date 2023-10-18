@@ -22,7 +22,7 @@ public class ShmemChannelServerDemo {
         final Path flinkPath = tempDir.resolve("shared_channel_demo.shmem");
         Files.deleteIfExists(flinkPath);
 
-        final boolean debug = false;
+        final boolean debug = true;
         boolean shutdown = false;
 
         final Shmem shmem = new ShmemFactory()
@@ -60,12 +60,13 @@ public class ShmemChannelServerDemo {
                     try (final ShmemChannel.Read read = channel.read(120, TimeUnit.SECONDS)) {
                         final ByteBuffer readBuffer = read.getBuffer();
 
-                        if (debug)
-                            log.info("readEnd(): received request #{} ({} bytes)", iteration, readBuffer.remaining());
+                        if (debug) log.info("readEnd(): received request #{} ({} bytes)", iteration, readBuffer.remaining());
 
                         iteration = readBuffer.getLong();
-                        readBuffer.getLong();
-                        readBuffer.getLong();
+                        long v2 = readBuffer.getLong();
+                        long v3 = readBuffer.getLong();
+
+                        if (debug) log.info(" iteration={}, v2={}, v3={}", iteration, v2, v3);
                     }
 
                     // we want to write to the channel!
@@ -76,8 +77,7 @@ public class ShmemChannelServerDemo {
 
                         writeBuffer.putLong(iteration);
 
-                        if (debug)
-                            log.info("writeEnd(): sent response #{} ({} bytes)", iteration, writeBuffer.position());
+                        if (debug) log.info("writeEnd(): sent response #{} ({} bytes)", iteration, writeBuffer.position());
                     }
 
                     count++;

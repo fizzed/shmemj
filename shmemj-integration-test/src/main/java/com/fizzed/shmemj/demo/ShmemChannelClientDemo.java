@@ -20,8 +20,8 @@ public class ShmemChannelClientDemo {
         final Path tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
         final Path flinkPath = tempDir.resolve("shared_channel_demo.shmem");
 
-        final boolean debug = false;
-        final int iterations = 200000;
+        final boolean debug = true;
+        final int iterations = 2;
 
         try (final Shmem shmem = new ShmemFactory()
                 .setFlink(flinkPath.toString())
@@ -61,7 +61,9 @@ public class ShmemChannelClientDemo {
 
                         if (debug) log.info("readEnd(): received response #{} ({} bytes)", i, readBuffer.remaining());
 
-                        readBuffer.getLong();
+                        long v1 = readBuffer.getLong();
+
+                        if (debug) log.info(" v1={}", v1);
                     }
                 }
 

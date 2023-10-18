@@ -8,7 +8,7 @@ PROJECT_DIR=$PWD
 BUILDOS=$1
 BUILDARCH=$2
 
-[[ -z "$BUILDOS" ]] && { echo "BUILDOS is empty" ; exit 1; }
+[[ -z "$BUILDOS" ]] && { echo "echo Usage: script [buildos] [buildarch]" ; exit 1; }
 [[ -z "$BUILDARCH" ]] && { echo "BUILDARCH is empty" ; exit 1; }
 
 cd native

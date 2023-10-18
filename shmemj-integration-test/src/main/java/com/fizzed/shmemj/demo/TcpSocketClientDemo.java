@@ -14,7 +14,7 @@ public class TcpSocketClientDemo {
 
     static public void main(String[] args) throws Exception {
 
-        int iterations = 200000;
+        int iterations = 2;
 
         try (Socket socket = new Socket()) {
 

@@ -27,6 +27,7 @@
         <module>shmemj-macos-arm64</module>
         <module>shmemj-macos-x64</module>
         <module>shmemj-windows-x64</module>
+        <module>shmemj-windows-x32</module>
         <module>shmemj-bom</module>
         <module>shmemj-all-natives</module>
         <module>shmemj-integration-test</module>
