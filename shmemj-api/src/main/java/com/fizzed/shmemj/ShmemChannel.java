@@ -13,11 +13,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ShmemChannel implements AutoCloseable {
 
-    static private final int CONTROL_BUFFER_SIZE = 17;
-    static private final int CONTROL_SERVER_PID_POS = 0;
-    static private final int CONTROL_CLIENT_PID_POS = 8;
-    static private final int CONTROL_SPIN_LOCK_POS = 16;
+    // probably best to keep control buffer as divisible by 8
+    static private final int CONTROL_BUFFER_SIZE = 24;
+    static private final int CONTROL_MAGIC_POS = 0;
+    static private final int CONTROL_VERSION_POS = 1;
+    static private final int CONTROL_SERVER_PID_POS = 2;
+    static private final int CONTROL_CLIENT_PID_POS = 10;
+    static private final int CONTROL_SPIN_LOCK_POS = 18;
 
+    static private final byte MAGIC = (byte)42;         // random value to detect this is most likely a shmem channel
+    static private final byte VERSION_1_0 = (byte)10;   // safety of versioned channels in case of long running processes...
     static private final byte STANDARD_LOCKS = (byte)0;
     static private final byte SPIN_LOCKS = (byte)1;
 
@@ -25,12 +30,28 @@ public class ShmemChannel implements AutoCloseable {
 
         private final ByteBuffer buffer;
 
-        public Control(Shmem shmem) {
-            this.buffer = shmem.newByteBuffer(0, CONTROL_BUFFER_SIZE);
+        public Control(Shmem shmem, long offset) {
+            this.buffer = shmem.newByteBuffer(offset, CONTROL_BUFFER_SIZE);
         }
 
         public long getSize() {
             return this.buffer.capacity();
+        }
+
+        public byte getMagic() {
+            return this.buffer.get(CONTROL_MAGIC_POS);
+        }
+
+        public void setMagic(byte magic) {
+            this.buffer.put(CONTROL_MAGIC_POS, magic);
+        }
+
+        public byte getVersion() {
+            return this.buffer.get(CONTROL_VERSION_POS);
+        }
+
+        public void setVersion(byte version) {
+            this.buffer.put(CONTROL_VERSION_POS, version);
         }
 
         public long getServerPid() {
@@ -244,7 +265,8 @@ public class ShmemChannel implements AutoCloseable {
         this.clientWriteCondition.signal();
         this.clientReadCondition.signal();
 
-        // wait for connecting to be false
+        // wait for connecting to be false, if we don't wait, segfaults are potentially on the table since these flags
+        // indicate that some thread is possibly accessing the shmem
         WaitFor.requireMillis(() -> !this.connecting.get(), 5000, 100);
         WaitFor.requireMillis(() -> !this.reading.get(), 5000, 100);
         WaitFor.requireMillis(() -> !this.writing.get(), 5000, 100);
@@ -373,15 +395,16 @@ public class ShmemChannel implements AutoCloseable {
     }
 
     static private ShmemChannel createOrExisting(Shmem shmem, Boolean spinLocks) {
+        long offset = 0L;
+
+        // attach the "control" to the memory, so we can quickly detect how to proceed
+        final Control control = new Control(shmem, offset);
+        offset += control.getSize();
+
         final ShmemCondition serverWriteCondition;
         final ShmemCondition serverReadCondition;
         final ShmemCondition clientWriteCondition;
         final ShmemCondition clientReadCondition;
-
-        long offset = 0L;
-
-        final Control control = new Control(shmem);
-        offset += control.getSize();
 
         if (shmem.isOwner()) {
             final boolean _spinLocks = spinLocks != null ? spinLocks : false;
@@ -399,10 +422,20 @@ public class ShmemChannel implements AutoCloseable {
             offset += clientReadCondition.getSize();
 
             // zero out control buffer, set spin lock used
+            control.setMagic(MAGIC);
+            control.setVersion(VERSION_1_0);
             control.setServerPid(0);
             control.setClientPid(0);
             control.setSpinLocks(_spinLocks);
         } else {
+            // validate magic and version are what we expect
+            if (control.getMagic() != MAGIC) {
+                throw new IllegalStateException("Shared memory channel has an unexpected magic value (it is either corrupted or not initialized as a channel yet)");
+            }
+            if (control.getVersion() != VERSION_1_0) {
+                throw new IllegalStateException("Shared memory channel has an unexpected version value (it is either corrupted or not initialized as a channel yet)");
+            }
+
             // the control buffer will help figure out if it's using SPIN vs. STANDARD locks
             final boolean _spinLocks = control.isSpinLocks();
 

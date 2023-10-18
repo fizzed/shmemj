@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.*;
 
@@ -123,6 +124,29 @@ public class ShmemChannelTest {
                 ownerShmem.close();
             }
         });
+    }
+
+    @Test
+    public void existingWithNonInitializedShmem() throws Exception {
+        final Shmem serverShmem = new ShmemFactory()
+            .setSize(2048L)
+            .create();
+
+        final Shmem clientShmem = new ShmemFactory()
+            .setOsId(serverShmem.getOsId())
+            .open();
+
+        try {
+            // try to "existing" which is a non-initialized shmem
+            final ShmemChannel channel = new ShmemChannelFactory()
+                .setShmem(clientShmem)
+                .existing();
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("unexpected magic value"));
+        } finally {
+            clientShmem.close();
+            serverShmem.close();
+        }
     }
 
     @Test

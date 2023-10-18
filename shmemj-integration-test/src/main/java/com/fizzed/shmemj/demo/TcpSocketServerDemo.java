@@ -16,6 +16,8 @@ public class TcpSocketServerDemo {
     static public void main(String[] args) throws Exception {
         try (ServerSocket serverSocket = new ServerSocket(12244)) {
 
+            log.info("Created server socket on {}", serverSocket.getLocalSocketAddress());
+
             log.info("Waiting for client connection...");
 
             while (true) {
