@@ -1,5 +1,7 @@
-package com.fizzed.shmemj;
+package com.fizzed.shmemj.demo;
 
+import com.fizzed.shmemj.Shmem;
+import com.fizzed.shmemj.ShmemFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

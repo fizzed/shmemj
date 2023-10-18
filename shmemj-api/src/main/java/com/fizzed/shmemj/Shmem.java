@@ -1,18 +1,20 @@
 package com.fizzed.shmemj;
 
-import java.io.Closeable;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CopyOnWriteArrayList;
 
-public class Shmem implements Closeable {
+public class Shmem implements AutoCloseable {
     static {
         LibraryLoader.loadLibrary();
     }
 
     /** pointer to the native object */
     private long ptr;
+    final private CopyOnWriteArrayList<AutoCloseable> closeables;
 
     public Shmem() {
         this.ptr = 0;
+        this.closeables = new CopyOnWriteArrayList<>();
     }
 
     public String getOsId() {
@@ -36,6 +38,7 @@ public class Shmem implements Closeable {
         this.checkConditionOffset(offset);
         ShmemCondition c = this.nativeNewCondition(offset, spinLock, autoReset);
         c.setShmem(this);
+        //this.closeables.add(c);
         return c;
     }
 
@@ -43,6 +46,7 @@ public class Shmem implements Closeable {
         this.checkConditionOffset(offset);
         ShmemCondition c = this.nativeExistingCondition(offset, spinLock);
         c.setShmem(this);
+        //this.closeables.add(c);
         return c;
     }
 
@@ -67,12 +71,30 @@ public class Shmem implements Closeable {
         return this.nativeNewByteBuffer(offset, length);
     }
 
+    void addCloseable(AutoCloseable closeable) {
+        this.closeables.addIfAbsent(closeable);
+    }
+
+    void removeCloseable(AutoCloseable closeable) {
+        this.closeables.remove(closeable);
+    }
+
     public boolean isDestroyed() {
         return this.ptr == 0;
     }
 
     @Override
     public void close() {
+        // close all resources first in reverse order
+        while (!this.closeables.isEmpty()) {
+            // remove the last one
+            AutoCloseable closeable = this.closeables.remove(this.closeables.size()-1);
+            try {
+                closeable.close();
+            } catch (Exception e) {
+                // do we ignore this?
+            }
+        }
         this.nativeDestroy();
     }
 

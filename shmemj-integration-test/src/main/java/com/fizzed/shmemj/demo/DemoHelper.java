@@ -1,4 +1,4 @@
-package com.fizzed.shmemj;
+package com.fizzed.shmemj.demo;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

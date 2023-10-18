@@ -6,10 +6,72 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.jupiter.api.Assertions.fail;
 
 public class ShmemConditionTest {
+
+    @Test
+    public void standardLock() throws Exception {
+        final Shmem shmem = new ShmemFactory()
+            .setSize(2048L)
+            .create();
+
+        try {
+            final ShmemCondition condition1 = shmem.newCondition(0, false, true);
+
+            assertThat(condition1.getSize(), greaterThan(1L));
+
+            // this should work
+            condition1.signal();
+            condition1.clear();
+
+            boolean signaled;
+
+            // with no signal, we should timeout
+            signaled = condition1.await(10, TimeUnit.MILLISECONDS);
+            assertThat(signaled, is(false));
+
+            // we shouldn't actually need to wait
+            condition1.signal();
+            signaled = condition1.await(10, TimeUnit.MILLISECONDS);
+            assertThat(signaled, is(true));
+        } finally {
+            shmem.close();
+        }
+    }
+
+    @Test
+    public void spinLock() throws Exception {
+        final Shmem shmem = new ShmemFactory()
+            .setSize(2048L)
+            .create();
+
+        try {
+            final ShmemCondition condition1 = shmem.newCondition(0, false, true);
+
+            assertThat(condition1.getSize(), greaterThan(1L));
+
+            // this should work
+            condition1.signal();
+            condition1.clear();
+
+            boolean signaled;
+
+            // with no signal, we should timeout
+            signaled = condition1.await(10, TimeUnit.MILLISECONDS);
+            assertThat(signaled, is(false));
+
+            // we shouldn't actually need to wait
+            condition1.signal();
+            signaled = condition1.await(10, TimeUnit.MILLISECONDS);
+            assertThat(signaled, is(true));
+        } finally {
+            shmem.close();
+        }
+    }
 
     @Test
     public void destroyingShmemInvalidatesNativeCalls() throws Exception {

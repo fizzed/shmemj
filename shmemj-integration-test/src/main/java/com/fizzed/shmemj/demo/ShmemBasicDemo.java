@@ -1,12 +1,11 @@
-package com.fizzed.shmemj;
+package com.fizzed.shmemj.demo;
 
-import com.fizzed.jne.Options;
+import com.fizzed.shmemj.Shmem;
+import com.fizzed.shmemj.ShmemFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 
 public class ShmemBasicDemo {
     static private final Logger log = LoggerFactory.getLogger(ShmemBasicDemo.class);

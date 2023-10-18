@@ -1,4 +1,4 @@
-package com.fizzed.shmemj;
+package com.fizzed.shmemj.demo;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -6,15 +6,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.TimeUnit;
-
-import static com.fizzed.shmemj.DemoHelper.getStringUTF8;
 
 public class TcpSocketServerDemo {
     static private final Logger log = LoggerFactory.getLogger(TcpSocketServerDemo.class);

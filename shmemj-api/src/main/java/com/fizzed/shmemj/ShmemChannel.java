@@ -1,23 +1,64 @@
 package com.fizzed.shmemj;
 
+import com.fizzed.crux.util.WaitFor;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.nio.channels.NotYetConnectedException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class ShmemChannel {
+public class ShmemChannel implements AutoCloseable {
 
     static private final int CONTROL_BUFFER_SIZE = 17;
-    static private final int CONTROL_OWNER_PID_POS = 0;
+    static private final int CONTROL_SERVER_PID_POS = 0;
     static private final int CONTROL_CLIENT_PID_POS = 8;
     static private final int CONTROL_SPIN_LOCK_POS = 16;
 
-    static private final byte STANDARD_LOCK = (byte)0;
-    static private final byte SPIN_LOCK = (byte)1;
+    static private final byte STANDARD_LOCKS = (byte)0;
+    static private final byte SPIN_LOCKS = (byte)1;
 
-    abstract protected class AbstractOp implements Closeable {
+    static private class Control {
+
+        private final ByteBuffer buffer;
+
+        public Control(Shmem shmem) {
+            this.buffer = shmem.newByteBuffer(0, CONTROL_BUFFER_SIZE);
+        }
+
+        public long getSize() {
+            return this.buffer.capacity();
+        }
+
+        public long getServerPid() {
+            return this.buffer.getLong(CONTROL_SERVER_PID_POS);
+        }
+
+        public void setServerPid(long pid) {
+            this.buffer.putLong(CONTROL_SERVER_PID_POS, pid);
+        }
+
+        public long getClientPid() {
+            return this.buffer.getLong(CONTROL_CLIENT_PID_POS);
+        }
+
+        public void setClientPid(long pid) {
+            this.buffer.putLong(CONTROL_CLIENT_PID_POS, pid);
+        }
+
+        public boolean isSpinLocks() {
+            return this.buffer.get(CONTROL_SPIN_LOCK_POS) == SPIN_LOCKS;
+        }
+
+        public void setSpinLocks(boolean spinLocks) {
+            this.buffer.put(CONTROL_SPIN_LOCK_POS, spinLocks ? SPIN_LOCKS : STANDARD_LOCKS);
+        }
+    }
+
+    abstract protected static class AbstractOp implements Closeable {
 
         final protected ByteBuffer buffer;
 
@@ -54,60 +95,61 @@ public class ShmemChannel {
         }
     }
 
-
-
     private final Shmem shmem;
-    private final boolean owner;
-    private final ByteBuffer controlBuffer;
-    private final ShmemCondition ownerWriteCondition;
-    private final ShmemCondition ownerReadCondition;
+    private final boolean server;
+    private final Control control;
+    private final ShmemCondition serverWriteCondition;
+    private final ShmemCondition serverReadCondition;
     private final ShmemCondition clientWriteCondition;
     private final ShmemCondition clientReadCondition;
-    private final ByteBuffer ownerBuffer;
+    private final ByteBuffer serverBuffer;
     private final ByteBuffer clientBuffer;
+    private final AtomicBoolean connecting;
+    private final AtomicBoolean reading;
+    private final AtomicBoolean writing;
+    private final AtomicBoolean closed;
 
-    public ShmemChannel(Shmem shmem, ByteBuffer controlBuffer, ShmemCondition ownerWriteCondition,
-                        ShmemCondition ownerReadCondition, ShmemCondition clientWriteCondition,
-                        ShmemCondition clientReadCondition, ByteBuffer ownerBuffer, ByteBuffer clientBuffer) {
+    public ShmemChannel(Shmem shmem, Control control, ShmemCondition serverWriteCondition,
+                        ShmemCondition serverReadCondition, ShmemCondition clientWriteCondition,
+                        ShmemCondition clientReadCondition, ByteBuffer serverBuffer, ByteBuffer clientBuffer) {
 
         this.shmem = shmem;
-        this.owner = shmem.isOwner();
-        this.controlBuffer = controlBuffer;
-        this.ownerWriteCondition = ownerWriteCondition;
-        this.ownerReadCondition = ownerReadCondition;
+        this.server = shmem.isOwner();
+        this.control = control;
+        this.serverWriteCondition = serverWriteCondition;
+        this.serverReadCondition = serverReadCondition;
         this.clientWriteCondition = clientWriteCondition;
         this.clientReadCondition = clientReadCondition;
-        this.ownerBuffer = ownerBuffer;
+        this.serverBuffer = serverBuffer;
         this.clientBuffer = clientBuffer;
+        this.connecting = new AtomicBoolean(false);
+        this.reading = new AtomicBoolean(false);
+        this.writing = new AtomicBoolean(false);
+        this.closed = new AtomicBoolean(false);
     }
 
-    public long getOwnerPid() {
-        return this.controlBuffer.getLong(0);
+    public boolean isServer() {
+        return this.server;
+    }
+
+    public long getServerPid() {
+        this.checkShmem();
+        return this.control.getServerPid();
     }
 
     public long getClientPid() {
-        return this.controlBuffer.getLong(8);
+        this.checkShmem();
+        return this.control.getClientPid();
     }
 
-    protected void setOwnerPid(long pid) {
-        this.controlBuffer.putLong(0, pid);
+    public boolean isSpinLocks() {
+        this.checkShmem();
+        return this.control.isSpinLocks();
     }
 
-    protected void setClientPid(long pid) {
-        this.controlBuffer.putLong(8, pid);
-    }
-
-    public long getOwnerBufferLength() {
-        return this.ownerBuffer.capacity();
-    }
-
-    public long getClientBufferLength() {
-        return this.ownerBuffer.capacity();
-    }
-
-    protected long awaitConnected(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException, IOException {
+    protected long awaitConnected(long timeout, TimeUnit unit) throws IOException, TimeoutException, InterruptedException {
         // we need to wait for th other party to signal
-        final ShmemCondition condition = this.owner ? this.ownerWriteCondition : this.clientWriteCondition;
+        final ShmemCondition condition = this.server ? this.serverWriteCondition : this.clientWriteCondition;
         boolean signaled = condition.await(timeout, unit);
         if (!signaled) {
             throw new TimeoutException();
@@ -117,126 +159,209 @@ public class ShmemChannel {
         condition.signal();
 
         // what happened to the other party?
-        final long pid = this.owner ? this.getClientPid() : this.getOwnerPid();
+        final long pid = this.server ? this.getClientPid() : this.getServerPid();
 
-        if (pid > 0) {
-            return pid;             // success, owner/client is connected
-        } else if (pid < 0) {       // owner/client was connected, but is now closed
-            throw new ClosedChannelException();
-        } else {                    // still zero? this is some kind of logic error
-            throw new IllegalStateException("Should be impossible case of connected (did someone write to the channel before it was connected?)");
-        }
+        this.checkClosed(false);
+
+        return pid;
     }
 
     public long accept(long timeout, TimeUnit unit) throws IOException, InterruptedException, TimeoutException {
+        this.checkShmem();
+
         // only owners can accept
-        if (!this.owner) {
+        if (!this.server) {
             throw new IllegalStateException("Only channel owners are allowed to accept (did you mean to use connect?)");
         }
 
-        // set the pid to indicate our end is ready
-        this.setOwnerPid(ProcessHandle.current().pid());
+        this.connecting.set(true);
+        try {
+            // set the pid to indicate our end is ready
+            this.control.setServerPid(ProcessHandle.current().pid());
+            // signal the other party we are ready
+            this.clientWriteCondition.signal();
 
-        // signal the other party we are ready
-        this.clientWriteCondition.signal();
-
-        return this.awaitConnected(timeout, unit);
+            try {
+                return this.awaitConnected(timeout, unit);
+            } catch (TimeoutException e) {
+                // back out side effects
+                this.clientWriteCondition.clear();
+                this.control.setServerPid(0);
+                throw e;
+            }
+        } finally {
+            this.connecting.set(false);
+        }
     }
 
     public long connect(long timeout, TimeUnit unit) throws IOException, InterruptedException, TimeoutException {
+        this.checkShmem();
+
         // only clients can connect
-        if (this.owner) {
+        if (this.server) {
             throw new IllegalStateException("Only channel clients are allowed to connect (did you mean to use accept?)");
         }
 
-        // set the pid to indicate our end is ready
-        this.setClientPid(ProcessHandle.current().pid());
+        this.connecting.set(true);
+        try {
+            // set the pid to indicate our end is ready
+            this.control.setClientPid(ProcessHandle.current().pid());
+            // signal the other party we are ready
+            this.serverWriteCondition.signal();
 
-        // signal the other party we are ready
-        this.ownerWriteCondition.signal();
-
-        return this.awaitConnected(timeout, unit);
-    }
-
-    public void close() {
-        // negative 1 for process ids indicates the channel is now closed on that side
-        if (this.owner) {
-            this.setOwnerPid(-1);
-            // unblock any read/writes on client
-            this.clientWriteCondition.signal();
-            this.clientReadCondition.signal();
-        } else {
-            this.setClientPid(-1);
-            // unblock any read/writes on owner
-            this.ownerWriteCondition.signal();
-            this.ownerReadCondition.signal();
+            try {
+                return this.awaitConnected(timeout, unit);
+            } catch (TimeoutException e) {
+                // back out side effects
+                this.serverWriteCondition.clear();
+                this.control.setClientPid(0);
+                throw e;
+            }
+        } finally {
+            this.connecting.set(false);
         }
     }
 
-    protected void checkIfClosed(boolean forWriting) throws IOException {
-        long thisPid = this.owner ? this.getOwnerPid() : this.getClientPid();
-        long otherPid = !this.owner ? this.getOwnerPid() : this.getClientPid();
+    @Override
+    public void close() throws Exception {
+//        if (!this.connected) {
+//            return;     // noop if already disconnected
+//        }
+
+        // TODO: should we ignore a bad shmem and mark this as closed?
+        this.checkShmem();
+
+        // negative 1 for process ids indicates the channel is now closed on that side
+        if (this.server) {
+            this.control.setServerPid(-1);
+        } else {
+            this.control.setClientPid(-1);
+        }
+
+        // unblock any read/writes on client & owner
+        this.serverWriteCondition.signal();
+        this.serverReadCondition.signal();
+        this.clientWriteCondition.signal();
+        this.clientReadCondition.signal();
+
+        // wait for connecting to be false
+        WaitFor.requireMillis(() -> !this.connecting.get(), 5000, 100);
+        WaitFor.requireMillis(() -> !this.reading.get(), 5000, 100);
+        WaitFor.requireMillis(() -> !this.writing.get(), 5000, 100);
+
+        this.shmem.removeCloseable(this);
+    }
+
+    protected void checkShmem() {
+        if (this.shmem.isDestroyed()) {
+            throw new IllegalStateException("Shared memory backing this channel is destroyed (you should ensure you have closed the channel before the shared memory!)");
+        }
+    }
+
+    protected void checkClosed(boolean forWriting) throws IOException {
+        // TODO: we could mark this as closed with a boolean, so we can avoid relying on native shmem?
+
+        this.checkShmem();
+
+        long thisPid = this.server ? this.control.getServerPid() : this.control.getClientPid();
+        long otherPid = !this.server ? this.control.getServerPid() : this.control.getClientPid();
 
         // are we closed? or never connected?
-        if (thisPid <= 0) {
+        if (thisPid < 0) {
             throw new ClosedChannelException();
+        } else if (thisPid == 0) {
+            throw new NotYetConnectedException();
         }
 
         // on writes, no point writing if we're not closed, but the other side is closed
         // but for reading, there may be an in-flight
-        if (forWriting && otherPid <= 0) {
+        if (otherPid < 0) {
             throw new ClosedChannelException();
+        } else if (otherPid == 0) {
+            throw new NotYetConnectedException();
         }
     }
 
-    public Write write(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException {
-        final ShmemCondition condition = this.owner ? this.ownerWriteCondition : this.clientWriteCondition;
+    public Write write(long timeout, TimeUnit unit) throws IOException, TimeoutException, InterruptedException {
+        // 1. check if the channel is closed
+        this.checkClosed(false);
 
-        // we need to wait till we are allowed to write
-        boolean signaled = condition.await(timeout, unit);
-        if (!signaled) {
-            throw new TimeoutException();
+        this.writing.set(true);
+        try {
+            // 2.  wait till we are allowed to write
+            final ShmemCondition condition = this.server ? this.serverWriteCondition : this.clientWriteCondition;
+            boolean signaled = condition.await(timeout, unit);
+            if (!signaled) {
+                throw new TimeoutException();
+            }
+
+            // 3. check if we were signaled b/c the channel is closed
+            this.checkClosed(false);
+
+            // 4. ready for writing
+            final ByteBuffer buffer = this.server ? this.serverBuffer : this.clientBuffer;
+            buffer.rewind();
+            return new Write(buffer);
+        } catch (IOException | TimeoutException |InterruptedException e) {
+            this.writing.set(false);
+            throw e;
         }
-
-        final ByteBuffer buffer = this.owner ? this.ownerBuffer : this.clientBuffer;
-
-        buffer.rewind();
-        return new Write(buffer);
     }
 
     protected void writeEnd() {
-        if (this.owner) {
+        // TODO: is this overkill?
+        this.checkShmem();
+
+        if (this.server) {
             // client may now read AND must be the only operation that occurs next
             this.clientReadCondition.signal();
         } else {
             // owner may now read AND must be the only operation that occurs next
-            this.ownerReadCondition.signal();
+            this.serverReadCondition.signal();
         }
+
+        this.writing.set(false);
     }
 
-    public Read read(long timeout, TimeUnit unit) throws TimeoutException, InterruptedException {
-        final ShmemCondition condition = this.owner ? this.ownerReadCondition : this.clientReadCondition;
+    public Read read(long timeout, TimeUnit unit) throws IOException, TimeoutException, InterruptedException {
+        // 1. check if the channel is closed
+        this.checkClosed(false);
 
-        // we need to wait till we are allowed to read
-        boolean signaled = condition.await(timeout, unit);
-        if (!signaled) {
-            throw new TimeoutException();
+        this.reading.set(true);
+        try {
+            // 2.  wait till we are allowed to read
+            final ShmemCondition condition = this.server ? this.serverReadCondition : this.clientReadCondition;
+            final boolean signaled = condition.await(timeout, unit);
+            if (!signaled) {
+                throw new TimeoutException();
+            }
+
+            // 3. check if we were signaled b/c the channel is closed
+            this.checkClosed(false);
+
+            // 4. ready for reading
+            final ByteBuffer buffer = this.server ? this.clientBuffer : this.serverBuffer;
+            buffer.rewind();
+            return new Read(buffer);
+        } catch (IOException | TimeoutException |InterruptedException e) {
+            this.reading.set(false);
+            throw e;
         }
-
-        final ByteBuffer buffer = this.owner ? this.clientBuffer : this.ownerBuffer;
-
-        buffer.rewind();
-        return new Read(buffer);
     }
 
     private void readEnd() {
-        if (this.owner) {
+        // TODO: is this overkill?
+        this.checkShmem();
+
+        if (this.server) {
             // client may now write
             this.clientWriteCondition.signal();
         } else {
             // owner may now write
-            this.ownerWriteCondition.signal();
+            this.serverWriteCondition.signal();
         }
+
+        this.reading.set(false);
     }
 
     static ShmemChannel create(Shmem shmem, boolean spinLock) {
@@ -247,51 +372,50 @@ public class ShmemChannel {
         return createOrExisting(shmem, false);  // spinLock argument irr
     }
 
-    static private ShmemChannel createOrExisting(Shmem shmem, Boolean spinLock) {
-        final ShmemCondition ownerWriteCondition;
-        final ShmemCondition ownerReadCondition;
+    static private ShmemChannel createOrExisting(Shmem shmem, Boolean spinLocks) {
+        final ShmemCondition serverWriteCondition;
+        final ShmemCondition serverReadCondition;
         final ShmemCondition clientWriteCondition;
         final ShmemCondition clientReadCondition;
 
         long offset = 0L;
 
-        // control buffer is 17 bytes (8 bytes for 2 pids, 1 byte for spinLocks)
-        final ByteBuffer controlBuffer = shmem.newByteBuffer(offset, CONTROL_BUFFER_SIZE);
-        offset += controlBuffer.capacity();
+        final Control control = new Control(shmem);
+        offset += control.getSize();
 
         if (shmem.isOwner()) {
-            final boolean usingSpinLock = spinLock != null ? spinLock : false;
+            final boolean _spinLocks = spinLocks != null ? spinLocks : false;
 
-            ownerWriteCondition = shmem.newCondition(offset, usingSpinLock, true);
-            offset += ownerWriteCondition.getSize();
+            serverWriteCondition = shmem.newCondition(offset, _spinLocks, true);
+            offset += serverWriteCondition.getSize();
 
-            ownerReadCondition = shmem.newCondition(offset, usingSpinLock, true);
-            offset += ownerReadCondition.getSize();
+            serverReadCondition = shmem.newCondition(offset, _spinLocks, true);
+            offset += serverReadCondition.getSize();
 
-            clientWriteCondition = shmem.newCondition(offset, usingSpinLock, true);
+            clientWriteCondition = shmem.newCondition(offset, _spinLocks, true);
             offset += clientWriteCondition.getSize();
 
-            clientReadCondition = shmem.newCondition(offset, usingSpinLock, true);
+            clientReadCondition = shmem.newCondition(offset, _spinLocks, true);
             offset += clientReadCondition.getSize();
 
             // zero out control buffer, set spin lock used
-            controlBuffer.putLong(CONTROL_OWNER_PID_POS, 0);
-            controlBuffer.putLong(CONTROL_CLIENT_PID_POS, 0);
-            controlBuffer.put(CONTROL_SPIN_LOCK_POS, usingSpinLock ? SPIN_LOCK : STANDARD_LOCK);
+            control.setServerPid(0);
+            control.setClientPid(0);
+            control.setSpinLocks(_spinLocks);
         } else {
             // the control buffer will help figure out if it's using SPIN vs. STANDARD locks
-            final boolean usingSpinLock = controlBuffer.get(CONTROL_SPIN_LOCK_POS) == SPIN_LOCK;
+            final boolean _spinLocks = control.isSpinLocks();
 
-            ownerWriteCondition = shmem.existingCondition(offset, usingSpinLock);
-            offset += ownerWriteCondition.getSize();
+            serverWriteCondition = shmem.existingCondition(offset, _spinLocks);
+            offset += serverWriteCondition.getSize();
 
-            ownerReadCondition = shmem.existingCondition(offset, usingSpinLock);
-            offset += ownerReadCondition.getSize();
+            serverReadCondition = shmem.existingCondition(offset, _spinLocks);
+            offset += serverReadCondition.getSize();
 
-            clientWriteCondition = shmem.existingCondition(offset, usingSpinLock);
+            clientWriteCondition = shmem.existingCondition(offset, _spinLocks);
             offset += clientWriteCondition.getSize();
 
-            clientReadCondition = shmem.existingCondition(offset, usingSpinLock);
+            clientReadCondition = shmem.existingCondition(offset, _spinLocks);
             offset += clientReadCondition.getSize();
         }
 
@@ -303,7 +427,11 @@ public class ShmemChannel {
         final ByteBuffer ownerBuffer = shmem.newByteBuffer(offset, ownerBufferLen);
         final ByteBuffer clientBuffer = shmem.newByteBuffer(offset+ownerBufferLen, clientBufferLen);
 
-        return new ShmemChannel(shmem, controlBuffer, ownerWriteCondition, ownerReadCondition, clientWriteCondition, clientReadCondition, ownerBuffer, clientBuffer);
+        final ShmemChannel channel = new ShmemChannel(shmem, control, serverWriteCondition, serverReadCondition, clientWriteCondition, clientReadCondition, ownerBuffer, clientBuffer);
+
+        shmem.addCloseable(channel);
+
+        return channel;
     }
 
 }

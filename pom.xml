@@ -53,6 +53,12 @@
                 <version>3.2.0</version>
             </dependency>
 
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>crux-util</artifactId>
+                <version>1.0.43</version>
+            </dependency>
+
             <!-- testing -->
 
             <dependency>

@@ -1,5 +1,6 @@
 package com.fizzed.shmemj;
 
+import com.fizzed.crux.util.StopWatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,9 +78,14 @@ public class ShmemFactory {
                 if (shmem != null) {
                     try {
                         if (!shmem.isDestroyed()) {
+                            final StopWatch closeTimer = StopWatch.timeMillis();
+
                             log.warn("Destroying shared memory on exit: owner={}, size={}, os_id={}, flink={}",
                                 shmem.isOwner(), shmem.getSize(), shmem.getOsId(), shmem.getFlink());
+
                             shmem.close();
+
+                            log.warn("Destroyed shared memory (in {})", closeTimer);
                         }
                     } catch (Throwable t) {
                         log.error("Unable to cleanly close shared memory", t);

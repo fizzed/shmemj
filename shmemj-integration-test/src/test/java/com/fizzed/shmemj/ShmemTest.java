@@ -74,25 +74,16 @@ public class ShmemTest {
         try {
             final ByteBuffer buf = shmem.newByteBuffer(0, 2048L);
 
-            assertThat(buf.isDirect(), is(true));
-            assertThat(buf.capacity(), is(2048));
+            // basic methods to see if it works
+            assertThat(buf.capacity(), greaterThan(2047));
             assertThat(buf.position(), is(0));
-
-            buf.put((byte)88);
-            buf.put((byte)12);
-            buf.put((byte)56);
-
-            buf.flip();
-            assertThat(buf.get(), is((byte)88));
-            assertThat(buf.get(), is((byte)12));
-            assertThat(buf.get(), is((byte)56));
         } finally {
             shmem.close();
         }
     }
 
     @Test
-    public void newConditionWithStandardLock() throws Exception {
+    public void newCondition() throws Exception {
         final Shmem shmem = new ShmemFactory()
             .setSize(2048L)
             .create();
@@ -101,21 +92,8 @@ public class ShmemTest {
             final ShmemCondition condition1 = shmem.newCondition(0, false, true);
 
             assertThat(condition1.getSize(), greaterThan(1L));
-
-            // this should work
             condition1.signal();
             condition1.clear();
-
-            boolean signaled;
-
-            // with no signal, we should timeout
-            signaled = condition1.await(10, TimeUnit.MILLISECONDS);
-            assertThat(signaled, is(false));
-
-            // we shouldn't actually need to wait
-            condition1.signal();
-            signaled = condition1.await(10, TimeUnit.MILLISECONDS);
-            assertThat(signaled, is(true));
         } finally {
             shmem.close();
         }

@@ -1,4 +1,4 @@
-package com.fizzed.shmemj;
+package com.fizzed.shmemj.demo;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,7 +8,6 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
 public class TcpSocketClientDemo {
     static private final Logger log = LoggerFactory.getLogger(TcpSocketClientDemo.class);
