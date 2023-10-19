@@ -89,12 +89,13 @@ public class ShmemChannelTest {
         try {
             consumer.apply(serverChannel, clientChannel);
         } finally {
+            // always cleanup
             clientChannel.close();
             serverChannel.close();
         }
     }
 
-    private void connectChannels(ShmemChannel serverChannel, ShmemChannel clientChannel, ConnectChannelsConsumer consumer) throws Exception {
+    private void connectChannels(ShmemServerChannel serverChannel, ShmemClientChannel clientChannel, ConnectChannelsConsumer consumer) throws Exception {
         final Future<ShmemChannelConnection> acceptFuture = this.asyncResult(() -> {
             return serverChannel.accept(2, TimeUnit.SECONDS);
         });
@@ -110,6 +111,7 @@ public class ShmemChannelTest {
         try {
             consumer.apply(serverConn, clientConn);
         } finally {
+            // always cleanup
             clientConn.close();
             serverConn.close();
         }
@@ -121,34 +123,25 @@ public class ShmemChannelTest {
 
     @Test
     public void create() throws Exception {
-        final ShmemChannel channel = new ShmemChannelFactory().setSize(2048L).setSpinLocks(true).createServerChannel();
-
-        try {
+        try (final ShmemChannel channel = new ShmemChannelFactory().setSize(2048L).setSpinLocks(true).createServerChannel()) {
             assertThat(channel.getServerPid(), is(0L));
             assertThat(channel.getClientPid(), is(0L));
             assertThat(channel.isSpinLocks(), is(true));
-        } finally {
-            channel.close();
         }
     }
 
     @Test
     public void existing() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
-            try {
-                assertThat(serverChannel.isServer(), is(true));
-                assertThat(serverChannel.getServerPid(), is(0L));
-                assertThat(serverChannel.getClientPid(), is(0L));
-                assertThat(serverChannel.isSpinLocks(), is(true));
+            assertThat(serverChannel.isServer(), is(true));
+            assertThat(serverChannel.getServerPid(), is(0L));
+            assertThat(serverChannel.getClientPid(), is(0L));
+            assertThat(serverChannel.isSpinLocks(), is(true));
 
-                assertThat(clientChannel.isServer(), is(false));
-                assertThat(clientChannel.getServerPid(), is(0L));
-                assertThat(clientChannel.getClientPid(), is(0L));
-                assertThat(clientChannel.isSpinLocks(), is(true));
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
+            assertThat(clientChannel.isServer(), is(false));
+            assertThat(clientChannel.getServerPid(), is(0L));
+            assertThat(clientChannel.getClientPid(), is(0L));
+            assertThat(clientChannel.isSpinLocks(), is(true));
         });
     }
 
@@ -176,61 +169,43 @@ public class ShmemChannelTest {
     @Test
     public void destroyingShmemInvalidatesNativeCalls() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
+            // closing the shared memory makes the condition impossible to use (its methods should fail, not segfault)
+            serverChannel.getShmem().close();
+            clientChannel.getShmem().close();
+
             try {
-                // closing the shared memory makes the condition impossible to use (its methods should fail, not segfault)
-                serverChannel.getShmem().close();
+                serverChannel.getServerPid();
+                fail();
+            } catch (ShmemDestroyedException e) {
+                // expected
+            }
 
-                try {
-                    serverChannel.getServerPid();
-                    fail();
-                } catch (ShmemDestroyedException e) {
-                    // expected
-                }
+            try {
+                serverChannel.getClientPid();
+                fail();
+            } catch (ShmemDestroyedException e) {
+                // expected
+            }
 
-                try {
-                    serverChannel.getClientPid();
-                    fail();
-                } catch (ShmemDestroyedException e) {
-                    // expected
-                }
+            try {
+                serverChannel.isSpinLocks();
+                fail();
+            } catch (ShmemDestroyedException e) {
+                // expected
+            }
 
-                try {
-                    serverChannel.isSpinLocks();
-                    fail();
-                } catch (ShmemDestroyedException e) {
-                    // expected
-                }
+            try {
+                serverChannel.accept(1, TimeUnit.SECONDS);
+                fail();
+            } catch (ShmemDestroyedException e) {
+                // expected
+            }
 
-                try {
-                    serverChannel.accept(1, TimeUnit.SECONDS);
-                    fail();
-                } catch (ShmemDestroyedException e) {
-                    // expected
-                }
-
-                try {
-                    serverChannel.connect(1, TimeUnit.SECONDS);
-                    fail();
-                } catch (ShmemDestroyedException e) {
-                     // expected
-                }
-
-                /*try {
-                    serverChannel.read(1, TimeUnit.SECONDS);
-                    fail();
-                } catch (ShmemDestroyedException e) {
-                    // expected
-                }
-
-                try {
-                    serverChannel.write(1, TimeUnit.SECONDS);
-                    fail();
-                } catch (ShmemDestroyedException e) {
-                    // expected
-                }*/
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
+            try {
+                clientChannel.connect(1, TimeUnit.SECONDS);
+                fail();
+            } catch (ShmemDestroyedException e) {
+                 // expected
             }
         });
     }
@@ -238,413 +213,410 @@ public class ShmemChannelTest {
     @Test
     public void accept() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
+            // accept should timeout if no client connects
             try {
-                // client is not allowed to "accept"
-                try {
-                    clientChannel.accept(2, TimeUnit.SECONDS);
-                    fail();
-                } catch (IllegalStateException e) {
-                    // expected
-                }
+                serverChannel.accept(50L, TimeUnit.MILLISECONDS);
+                fail();
+            } catch (TimeoutException e) {
+                // expected
+            }
 
-                // accept should timeout if no client connects
-                try {
-                    serverChannel.accept(50L, TimeUnit.MILLISECONDS);
-                    fail();
-                } catch (TimeoutException e) {
-                    // expected
-                }
+            // we should not allow accept to have side effects of making us look like we're ready
 
-                // we should not allow accept to have side effects of making us look like we're ready
+            assertThat(serverChannel.getServerPid(), is(0L));
+            // the client connect should timeout
+            try {
+                clientChannel.connect(50L, TimeUnit.MILLISECONDS);
+                fail();
+            } catch (TimeoutException e) {
+                // expected
+            }
 
-                assertThat(serverChannel.getServerPid(), is(0L));
-                // the client connect should timeout
-                try {
-                    clientChannel.connect(50L, TimeUnit.MILLISECONDS);
-                    fail();
-                } catch (TimeoutException e) {
-                    // expected
-                }
-
-                // async mimic an owner accepting connections
-                final Future<?> acceptFuture = this.async(() -> {
-                    ShmemChannelConnection conn = serverChannel.accept(3, TimeUnit.SECONDS);
-
-                    assertThat(conn.getRemotePid(), is(serverChannel.getServerPid()));
-                });
-
-                final ShmemChannelConnection conn = clientChannel.connect(5, TimeUnit.SECONDS);
+            // async mimic an owner accepting connections
+            final Future<?> acceptFuture = this.async(() -> {
+                ShmemChannelConnection conn = serverChannel.accept(3, TimeUnit.SECONDS);
 
                 assertThat(conn.getRemotePid(), is(serverChannel.getServerPid()));
+            });
 
-                acceptFuture.get(5, TimeUnit.SECONDS);
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
+            final ShmemChannelConnection conn = clientChannel.connect(5, TimeUnit.SECONDS);
+
+            assertThat(conn.getRemotePid(), is(serverChannel.getServerPid()));
+
+            acceptFuture.get(5, TimeUnit.SECONDS);
         });
     }
 
     @Test
     public void acceptCloseAccept() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
-            try {
-                // start server accept
-                final Future<ShmemChannelConnection> acceptFuture1 = this.asyncResult(() -> {
-                    ShmemChannelConnection conn = serverChannel.accept(2, TimeUnit.SECONDS);
-                    assertThat(conn.getRemotePid(), greaterThan(0L));
-                    return conn;
-                });
+            // start server accept
+            final Future<ShmemChannelConnection> acceptFuture1 = this.asyncResult(() -> {
+                ShmemChannelConnection conn = serverChannel.accept(2, TimeUnit.SECONDS);
+                assertThat(conn.getRemotePid(), greaterThan(0L));
+                return conn;
+            });
 
-                // client connects
-                final ShmemChannelConnection clientConn = clientChannel.connect(5, TimeUnit.SECONDS);
+            // client connects
+            final ShmemChannelConnection clientConn = clientChannel.connect(5, TimeUnit.SECONDS);
 
-                // server accept should finish
-                final ShmemChannelConnection serverConn = this.awaitSecs(acceptFuture1, 5);
+            // server accept should finish
+            final ShmemChannelConnection serverConn = this.awaitSecs(acceptFuture1, 5);
 
-                clientConn.close();
-                serverConn.close();
+            clientConn.close();
+            serverConn.close();
 
-                // server should be able to "accept" again
-                final Future<?> acceptFuture2 = this.async(() -> {
-                    ShmemChannelConnection conn = serverChannel.accept(2, TimeUnit.SECONDS);
-                    assertThat(conn.getRemotePid(), greaterThan(0L));
-                });
+            // server should be able to "accept" again
+            final Future<?> acceptFuture2 = this.async(() -> {
+                ShmemChannelConnection conn = serverChannel.accept(2, TimeUnit.SECONDS);
+                assertThat(conn.getRemotePid(), greaterThan(0L));
+            });
 
-                // client connects again
-                clientChannel.connect(5, TimeUnit.SECONDS);
+            // client connects again
+            clientChannel.connect(5, TimeUnit.SECONDS);
 
-                // server accept should finish
-                this.awaitSecs(acceptFuture2, 5);
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
+            // server accept should finish
+            this.awaitSecs(acceptFuture2, 5);
         });
     }
 
     @Test
     public void connect() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
+            // connect should timeout if no owner accepts
             try {
-                // owner is not allowed to "connect"
-                try {
-                    serverChannel.connect(2, TimeUnit.SECONDS);
-                    fail();
-                } catch (IllegalStateException e) {
-                    // expected
-                }
+                clientChannel.connect(50L, TimeUnit.MILLISECONDS);
+                fail();
+            } catch (TimeoutException e) {
+                // expected
+            }
 
-                // connect should timeout if no owner accepts
-                try {
-                    clientChannel.connect(50L, TimeUnit.MILLISECONDS);
-                    fail();
-                } catch (TimeoutException e) {
-                    // expected
-                }
+            // we should not allow accept to have side effects of making us look like we're ready
+            // owner pid should be zero
+            assertThat(clientChannel.getClientPid(), is(0L));
+            // the owner accept should timeout
+            try {
+                serverChannel.accept(50L, TimeUnit.MILLISECONDS);
+                fail();
+            } catch (TimeoutException e) {
+                // expected
+            }
 
-                // we should not allow accept to have side effects of making us look like we're ready
-                // owner pid should be zero
-                assertThat(clientChannel.getClientPid(), is(0L));
-                // the owner accept should timeout
-                try {
-                    serverChannel.accept(50L, TimeUnit.MILLISECONDS);
-                    fail();
-                } catch (TimeoutException e) {
-                    // expected
-                }
-
-                // async mimic a client connecting
-                final Future<?> connectFuture = this.async(() -> {
-                    ShmemChannelConnection conn = clientChannel.connect(3, TimeUnit.SECONDS);
-
-                    assertThat(conn.getRemotePid(), is(serverChannel.getServerPid()));
-                });
-
-                final ShmemChannelConnection conn = serverChannel.accept(5, TimeUnit.SECONDS);
+            // async mimic a client connecting
+            final Future<?> connectFuture = this.async(() -> {
+                ShmemChannelConnection conn = clientChannel.connect(3, TimeUnit.SECONDS);
 
                 assertThat(conn.getRemotePid(), is(serverChannel.getServerPid()));
+            });
 
-                connectFuture.get(5, TimeUnit.SECONDS);
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
+            final ShmemChannelConnection conn = serverChannel.accept(5, TimeUnit.SECONDS);
+
+            assertThat(conn.getRemotePid(), is(serverChannel.getServerPid()));
+
+            connectFuture.get(5, TimeUnit.SECONDS);
         });
     }
 
     @Test
     public void selfClose() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
-            try {
-                this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
-                    // we will close ourselves now and then try to write
-                    serverConn.close();
+            this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
+                // we will close ourselves now and then try to write
+                serverConn.close();
 
-                    try {
-                        serverConn.write(5, TimeUnit.SECONDS);
-                        fail();
-                    } catch (ClosedChannelException e) {
-                        // expected
-                    }
+                try {
+                    serverConn.write(5, TimeUnit.SECONDS);
+                    fail();
+                } catch (ClosedChannelException e) {
+                    // expected
+                }
 
-                    try {
-                        serverConn.read(5, TimeUnit.SECONDS);
-                        fail();
-                    } catch (ClosedChannelException e) {
-                        // expected
-                    }
+                try {
+                    serverConn.read(5, TimeUnit.SECONDS);
+                    fail();
+                } catch (ClosedChannelException e) {
+                    // expected
+                }
 
-                    // these should both work
-                    serverConn.close();
-                    clientConn.close();
-                }));
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
+                // these should both work
+                serverConn.close();
+                clientConn.close();
+            }));
         });
     }
 
     @Test
     public void otherClose() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
-            try {
-                this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
-                    // we will close ourselves now and then try to write from the other side
-                    serverConn.close();
+            this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
+                // we will close ourselves now and then try to write from the other side
+                serverConn.close();
 
-                    try {
-                        clientConn.write(5, TimeUnit.SECONDS);
-                        fail();
-                    } catch (ClosedChannelException e) {
-                        // expected
-                    }
+                try {
+                    clientConn.write(5, TimeUnit.SECONDS);
+                    fail();
+                } catch (ClosedChannelException e) {
+                    // expected
+                }
 
-                    try {
-                        clientConn.read(5, TimeUnit.SECONDS);
-                        fail();
-                    } catch (ClosedChannelException e) {
-                        // expected
-                    }
+                try {
+                    clientConn.read(5, TimeUnit.SECONDS);
+                    fail();
+                } catch (ClosedChannelException e) {
+                    // expected
+                }
 
-                    // these should both work
-                    serverConn.close();
-                    clientConn.close();
-                }));
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
+                // these should both work
+                serverConn.close();
+                clientConn.close();
+            }));
         });
     }
 
     @Test
     public void closeUnblocksAccept() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
-            try {
-                // server will block on accepting
-                final CountDownLatch acceptWaitLatch = new CountDownLatch(1);
-                final Future<?> acceptFuture = this.async(() -> {
-                    try {
-                        acceptWaitLatch.countDown();
-                        serverChannel.accept(2, TimeUnit.SECONDS);
-                        fail();
-                    } catch (ShmemDestroyedException e) {
-                        // expected
-                    }
-                });
+            // server will block on accepting
+            final CountDownLatch acceptWaitLatch = new CountDownLatch(1);
+            final Future<?> acceptFuture = this.async(() -> {
+                try {
+                    acceptWaitLatch.countDown();
+                    serverChannel.accept(2, TimeUnit.SECONDS);
+                    fail();
+                } catch (ShmemDestroyedException e) {
+                    // expected
+                }
+            });
 
-                // wait till owner & client are reading & waiting (as best we can)
-                this.awaitSecs(acceptWaitLatch, 5);
-                // TODO: any other way to guarantee await()?
-                Thread.sleep(500L);
+            // wait till owner & client are reading & waiting (as best we can)
+            this.awaitSecs(acceptWaitLatch, 5);
+            // TODO: any other way to guarantee await()?
+            Thread.sleep(500L);
 
-                // owner closes (should unblock itself & client)
-                serverChannel.close();
+            // owner closes (should unblock itself & client)
+            serverChannel.close();
 
-                this.awaitSecs(acceptFuture, 5);
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
+            this.awaitSecs(acceptFuture, 5);
         });
     }
 
     @Test
     public void closeUnblocksConnect() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
-            try {
-                // client will block on connecting
-                final CountDownLatch connectWaitLatch = new CountDownLatch(1);
-                final Future<?> connectFuture = this.async(() -> {
-                    try {
-                        connectWaitLatch.countDown();
-                        clientChannel.connect(2, TimeUnit.SECONDS);
-                        fail();
-                    } catch (ShmemDestroyedException e) {
-                        // expected
-                    }
-                });
+            // client will block on connecting
+            final CountDownLatch connectWaitLatch = new CountDownLatch(1);
+            final Future<?> connectFuture = this.async(() -> {
+                try {
+                    connectWaitLatch.countDown();
+                    clientChannel.connect(2, TimeUnit.SECONDS);
+                    fail();
+                } catch (ShmemDestroyedException e) {
+                    // expected
+                }
+            });
 
-                // wait till owner & client are reading & waiting (as best we can)
-                this.awaitSecs(connectWaitLatch, 5);
-                // TODO: any other way to guarantee await()?
-                Thread.sleep(500L);
+            // wait till owner & client are reading & waiting (as best we can)
+            this.awaitSecs(connectWaitLatch, 5);
+            // TODO: any other way to guarantee await()?
+            Thread.sleep(500L);
 
-                // owner closes (should unblock itself & client)
-                clientChannel.close();
+            // owner closes (should unblock itself & client)
+            clientChannel.close();
 
-                this.awaitSecs(connectFuture, 5);
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
+            this.awaitSecs(connectFuture, 5);
         });
     }
 
     @Test
     public void serverCloseUnblocksReads() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
-            try {
-                this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
-                    // server will block on reading
-                    final CountDownLatch serverReadWaitLatch = new CountDownLatch(1);
-                    final Future<?> serverReadFuture = this.async(() -> {
-                        try {
-                            serverReadWaitLatch.countDown();
-                            serverConn.read(2, TimeUnit.SECONDS).close();
-                            fail();
-                        } catch (ClosedChannelException e) {
-                            // expected
-                        }
-                    });
+            this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
+                // server will block on reading
+                final CountDownLatch serverReadWaitLatch = new CountDownLatch(1);
+                final Future<?> serverReadFuture = this.async(() -> {
+                    try {
+                        serverReadWaitLatch.countDown();
+                        serverConn.read(2, TimeUnit.SECONDS).close();
+                        fail();
+                    } catch (ClosedChannelException e) {
+                        // expected
+                    }
+                });
 
-                    // client will block on reading
-                    final CountDownLatch clientReadWaitLatch = new CountDownLatch(1);
-                    final Future<?> clientReadFuture = this.async(() -> {
-                        try {
-                            clientReadWaitLatch.countDown();
-                            clientConn.read(2, TimeUnit.SECONDS).close();
-                            fail();
-                        } catch (ClosedChannelException e) {
-                            // expected
-                        }
-                    });
+                // client will block on reading
+                final CountDownLatch clientReadWaitLatch = new CountDownLatch(1);
+                final Future<?> clientReadFuture = this.async(() -> {
+                    try {
+                        clientReadWaitLatch.countDown();
+                        clientConn.read(2, TimeUnit.SECONDS).close();
+                        fail();
+                    } catch (ClosedChannelException e) {
+                        // expected
+                    }
+                });
 
-                    // wait till server & client are reading & waiting (as best we can)
-                    this.awaitSecs(serverReadWaitLatch, 5);
-                    this.awaitSecs(clientReadWaitLatch, 5);
-                    // TODO: any other way to guarantee clientChannel.read is await()?
-                    Thread.sleep(500L);
+                // wait till server & client are reading & waiting (as best we can)
+                this.awaitSecs(serverReadWaitLatch, 5);
+                this.awaitSecs(clientReadWaitLatch, 5);
+                // TODO: any other way to guarantee clientChannel.read is await()?
+                Thread.sleep(500L);
 
-                    // server closes (should unblock itself & client)
-                    serverConn.close();
+                // server closes (should unblock itself & client)
+                serverConn.close();
 
-                    this.awaitSecs(serverReadFuture, 5);
-                    this.awaitSecs(clientReadFuture, 5);
-                }));
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
+                this.awaitSecs(serverReadFuture, 5);
+                this.awaitSecs(clientReadFuture, 5);
+            }));
         });
     }
 
     @Test
     public void serverCloseUnblocksClientWrite() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
-            try {
-                this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
-                    // since client is ready to write, we need to write once, so the next write will block
-                    serverConn.write(2, TimeUnit.SECONDS).close();
-                    clientConn.write(2, TimeUnit.SECONDS).close();
+            this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
+                // since client is ready to write, we need to write once, so the next write will block
+                serverConn.write(2, TimeUnit.SECONDS).close();
+                clientConn.write(2, TimeUnit.SECONDS).close();
 
-                    // owner will block on writing again
-                    final CountDownLatch ownerWriteWaitLatch = new CountDownLatch(1);
-                    final Future<?> ownerWriteFuture = this.async(() -> {
-                        try {
-                            ownerWriteWaitLatch.countDown();
-                            serverConn.write(2, TimeUnit.SECONDS).close();
-                            fail();
-                        } catch (ClosedChannelException e) {
-                            // expected
-                        }
-                    });
+                // owner will block on writing again
+                final CountDownLatch ownerWriteWaitLatch = new CountDownLatch(1);
+                final Future<?> ownerWriteFuture = this.async(() -> {
+                    try {
+                        ownerWriteWaitLatch.countDown();
+                        serverConn.write(2, TimeUnit.SECONDS).close();
+                        fail();
+                    } catch (ClosedChannelException e) {
+                        // expected
+                    }
+                });
 
-                    // client will block on writing again
-                    final CountDownLatch clientWriteWaitLatch = new CountDownLatch(1);
-                    final Future<?> clientWriteFuture = this.async(() -> {
-                        try {
-                            clientWriteWaitLatch.countDown();
-                            clientConn.write(2, TimeUnit.SECONDS).close();
-                            fail();
-                        } catch (ClosedChannelException e) {
-                            // expected
-                        }
-                    });
+                // client will block on writing again
+                final CountDownLatch clientWriteWaitLatch = new CountDownLatch(1);
+                final Future<?> clientWriteFuture = this.async(() -> {
+                    try {
+                        clientWriteWaitLatch.countDown();
+                        clientConn.write(2, TimeUnit.SECONDS).close();
+                        fail();
+                    } catch (ClosedChannelException e) {
+                        // expected
+                    }
+                });
 
-                    // wait till client is reading & waiting (as best we can)
-                    this.awaitSecs(ownerWriteWaitLatch, 5);
-                    this.awaitSecs(clientWriteWaitLatch, 5);
-                    Thread.yield();
-                    // TODO: any other way to guarantee clientChannel.read is await()?
-                    Thread.sleep(500L);
+                // wait till client is reading & waiting (as best we can)
+                this.awaitSecs(ownerWriteWaitLatch, 5);
+                this.awaitSecs(clientWriteWaitLatch, 5);
+                Thread.yield();
+                // TODO: any other way to guarantee clientChannel.read is await()?
+                Thread.sleep(500L);
 
-                    // owner closes (should unblock itself & client)
-                    serverConn.close();
+                // owner closes (should unblock itself & client)
+                serverConn.close();
 
-                    this.awaitSecs(ownerWriteFuture, 5);
-                    this.awaitSecs(clientWriteFuture, 5);
-                }));
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
+                this.awaitSecs(ownerWriteFuture, 5);
+                this.awaitSecs(clientWriteFuture, 5);
+            }));
         });
     }
 
     @Test
     public void destroyingShmemCanSegfaultChannelAccept() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
-            try {
-                final CountDownLatch connectWaitLatch = new CountDownLatch(1);
-                final Future<?> connectFuture = this.async(() -> {
-                    try {
-                        connectWaitLatch.countDown();
-                        serverChannel.accept(2, TimeUnit.SECONDS);
-                        fail();
-                    } catch (ShmemDestroyedException e) {
-                        // expected
-                    }
-                });
+            final CountDownLatch connectWaitLatch = new CountDownLatch(1);
+            final Future<?> connectFuture = this.async(() -> {
+                try {
+                    connectWaitLatch.countDown();
+                    serverChannel.accept(2, TimeUnit.SECONDS);
+                    fail();
+                } catch (ShmemDestroyedException e) {
+                    // expected
+                }
+            });
 
-                // wait till owner & client are reading & waiting (as best we can)
-                this.awaitSecs(connectWaitLatch, 5);
-                Thread.yield();
-                Thread.sleep(500L);
+            // wait till owner & client are reading & waiting (as best we can)
+            this.awaitSecs(connectWaitLatch, 5);
+            Thread.yield();
+            Thread.sleep(500L);
 
-                // owner closes (should unblock itself & client)
-                serverChannel.getShmem().close();
-                clientChannel.getShmem().close();
+            // owner closes (should unblock itself & client)
+            serverChannel.getShmem().close();
+            clientChannel.getShmem().close();
 
-                this.awaitSecs(connectFuture, 5);
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
+            this.awaitSecs(connectFuture, 5);
         });
     }
 
     @Test
     public void destroyingShmemCanSegfaultChannelConnect() throws Exception {
         this.createChannels((serverChannel, clientChannel) -> {
-            try {
-                final CountDownLatch connectWaitLatch = new CountDownLatch(1);
-                final Future<?> connectFuture = this.async(() -> {
+            final CountDownLatch connectWaitLatch = new CountDownLatch(1);
+            final Future<?> connectFuture = this.async(() -> {
+                try {
+                    connectWaitLatch.countDown();
+                    clientChannel.connect(2, TimeUnit.SECONDS);
+                    fail();
+                } catch (ShmemDestroyedException e) {
+                    // expected
+                }
+            });
+
+            // wait till owner & client are reading & waiting (as best we can)
+            this.awaitSecs(connectWaitLatch, 5);
+            Thread.yield();
+            Thread.sleep(500L);
+
+            // owner closes (should unblock itself & client)
+            clientChannel.getShmem().close();
+            serverChannel.getShmem().close();
+
+            this.awaitSecs(connectFuture, 5);
+        });
+    }
+
+    @Test
+    public void destroyingShmemCanSegfaultChannelRead() throws Exception {
+        this.createChannels((serverChannel, clientChannel) -> {
+            this.connectChannels(serverChannel, clientChannel, (serverConn, clientConn) -> {
+                final CountDownLatch readWaitLatch = new CountDownLatch(1);
+                final Future<?> readFuture = this.async(() -> {
                     try {
-                        connectWaitLatch.countDown();
-                        clientChannel.connect(2, TimeUnit.SECONDS);
+                        readWaitLatch.countDown();
+                        serverConn.read(2, TimeUnit.SECONDS);
+                        fail();
+                    } catch (ShmemDestroyedException e) {
+                        log.debug("Destroyed");
+                        // expected
+                    }
+                });
+
+                // wait till owner & client are reading & waiting (as best we can)
+                this.awaitSecs(readWaitLatch, 5);
+                Thread.yield();
+                Thread.sleep(500L);
+
+                // server closes (should unblock itself & client)
+                log.debug("Closing clientShmem");
+                clientChannel.getShmem().close();
+                log.debug("Closing serverShmem");
+                serverChannel.getShmem().close();
+
+                log.debug("Awaiting now...");
+                this.awaitSecs(readFuture, 5);
+            });
+        });
+    }
+
+    @Test
+    public void destroyingShmemCanSegfaultChannelWrite() throws Exception {
+        this.createChannels((serverChannel, clientChannel) -> {
+            this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
+                // write, so we'll block trying to write again
+                serverConn.write(2, TimeUnit.SECONDS).close();
+
+                final CountDownLatch writeWaitLatch = new CountDownLatch(1);
+                final Future<?> writeFuture = this.async(() -> {
+                    try {
+                        writeWaitLatch.countDown();
+                        serverConn.write(2, TimeUnit.SECONDS);
                         fail();
                     } catch (ShmemDestroyedException e) {
                         // expected
@@ -652,7 +624,7 @@ public class ShmemChannelTest {
                 });
 
                 // wait till owner & client are reading & waiting (as best we can)
-                this.awaitSecs(connectWaitLatch, 5);
+                this.awaitSecs(writeWaitLatch, 5);
                 Thread.yield();
                 Thread.sleep(500L);
 
@@ -660,86 +632,8 @@ public class ShmemChannelTest {
                 clientChannel.getShmem().close();
                 serverChannel.getShmem().close();
 
-                this.awaitSecs(connectFuture, 5);
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
-        });
-    }
-
-    @Test
-    public void destroyingShmemCanSegfaultChannelRead() throws Exception {
-        this.createChannels((serverChannel, clientChannel) -> {
-            try {
-                this.connectChannels(serverChannel, clientChannel, (serverConn, clientConn) -> {
-                    final CountDownLatch readWaitLatch = new CountDownLatch(1);
-                    final Future<?> readFuture = this.async(() -> {
-                        try {
-                            readWaitLatch.countDown();
-                            serverConn.read(2, TimeUnit.SECONDS);
-                            fail();
-                        } catch (ShmemDestroyedException e) {
-                            log.debug("Destroyed");
-                            // expected
-                        }
-                    });
-
-                    // wait till owner & client are reading & waiting (as best we can)
-                    this.awaitSecs(readWaitLatch, 5);
-                    Thread.yield();
-                    Thread.sleep(500L);
-
-                    // server closes (should unblock itself & client)
-                    log.debug("Closing clientShmem");
-                    clientChannel.getShmem().close();
-                    log.debug("Closing serverShmem");
-                    serverChannel.getShmem().close();
-
-                    log.debug("Awaiting now...");
-                    this.awaitSecs(readFuture, 5);
-                });
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
-        });
-    }
-
-    @Test
-    public void destroyingShmemCanSegfaultChannelWrite() throws Exception {
-        this.createChannels((serverChannel, clientChannel) -> {
-            try {
-                this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
-                    // write, so we'll block trying to write again
-                    serverConn.write(2, TimeUnit.SECONDS).close();
-
-                    final CountDownLatch writeWaitLatch = new CountDownLatch(1);
-                    final Future<?> writeFuture = this.async(() -> {
-                        try {
-                            writeWaitLatch.countDown();
-                            serverConn.write(2, TimeUnit.SECONDS);
-                            fail();
-                        } catch (ShmemDestroyedException e) {
-                            // expected
-                        }
-                    });
-
-                    // wait till owner & client are reading & waiting (as best we can)
-                    this.awaitSecs(writeWaitLatch, 5);
-                    Thread.yield();
-                    Thread.sleep(500L);
-
-                    // owner closes (should unblock itself & client)
-                    clientChannel.getShmem().close();
-                    serverChannel.getShmem().close();
-
-                    this.awaitSecs(writeFuture, 5);
-                }));
-            } finally {
-                clientChannel.close();
-                serverChannel.close();
-            }
+                this.awaitSecs(writeFuture, 5);
+            }));
         });
     }
 
