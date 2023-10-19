@@ -582,7 +582,7 @@ public class ShmemChannelTest {
                         readWaitLatch.countDown();
                         serverConn.read(2, TimeUnit.SECONDS);
                         fail();
-                    } catch (ShmemDestroyedException e) {
+                    } catch (ClosedChannelException | ShmemDestroyedException e) {
                         log.debug("Destroyed");
                         // expected
                     }
@@ -618,7 +618,7 @@ public class ShmemChannelTest {
                         writeWaitLatch.countDown();
                         serverConn.write(2, TimeUnit.SECONDS);
                         fail();
-                    } catch (ShmemDestroyedException e) {
+                    } catch (ClosedChannelException | ShmemDestroyedException e) {
                         // expected
                     }
                 });
