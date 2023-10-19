@@ -247,20 +247,12 @@ public class ShmemChannelTest {
 
                 // async mimic an owner accepting connections
                 final Future<?> acceptFuture = this.async(() -> {
-                    log.debug("About to accept...");
-
                     long clientPid = serverChannel.accept(3, TimeUnit.SECONDS);
-
-                    log.debug("Client connected!");
 
                     assertThat(clientPid, is(serverChannel.getServerPid()));
                 });
 
-                log.debug("Connecting...");
-
                 final long serverPid = clientChannel.connect(5, TimeUnit.SECONDS);
-
-                log.debug("Connected!");
 
                 assertThat(serverPid, is(serverChannel.getServerPid()));
 
@@ -279,7 +271,6 @@ public class ShmemChannelTest {
                 // start server accept
                 final Future<?> acceptFuture1 = this.async(() -> {
                     long clientPid = serverChannel.accept(2, TimeUnit.SECONDS);
-                    log.debug("Accept #1: clientPid={}", clientPid);
                     assertThat(clientPid, greaterThan(0L));
                 });
 
@@ -295,7 +286,6 @@ public class ShmemChannelTest {
                 // server should be able to "accept" again
                 final Future<?> acceptFuture2 = this.async(() -> {
                     long clientPid = serverChannel.accept(2, TimeUnit.SECONDS);
-                    log.debug("Accept #2: clientPid={}", clientPid);
                     assertThat(clientPid, greaterThan(0L));
                 });
 

@@ -269,6 +269,7 @@ public class ShmemChannel implements AutoCloseable {
 
             // NOTE: it's possible that despite the signal above, the server accept() could have timed out, so we
             // have not really connected to it, we'll see if that's an issue
+            // TODO: should we let the server signal us now?
 
             // register ourselves with the shmem to be closed if its closed
             this.shmem.addCloseable(this);
