@@ -22,7 +22,7 @@ public class ShmemChannelServerDemo {
         final Path flinkPath = tempDir.resolve("shared_channel_demo.shmem");
         Files.deleteIfExists(flinkPath);
 
-        final boolean debug = true;
+        final boolean debug = false;
         boolean shutdown = false;
 
         final Shmem shmem = new ShmemFactory()

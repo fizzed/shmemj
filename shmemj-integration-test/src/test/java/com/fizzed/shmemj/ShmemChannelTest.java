@@ -1,11 +1,14 @@
 package com.fizzed.shmemj;
 
+import com.fizzed.crux.util.WaitFor;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.ConnectException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.sql.Time;
 import java.util.concurrent.*;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -72,18 +75,17 @@ public class ShmemChannelTest {
     }
 
     private void connectChannels(ShmemChannel serverChannel, ShmemChannel clientChannel) throws Exception {
-        // async mimic a client connecting
-        final Future<?> connectFuture = this.async(() -> {
-            long ownerPid = clientChannel.connect(3, TimeUnit.SECONDS);
-
-            assertThat(ownerPid, is(serverChannel.getServerPid()));
+        final Future<?> acceptFuture = this.async(() -> {
+            serverChannel.accept(2, TimeUnit.SECONDS);
         });
 
-        final long serverPid = serverChannel.accept(5, TimeUnit.SECONDS);
+        // waitfor serverPid to be populated
+        WaitFor.requireMillis(() -> serverChannel.getServerPid() > 0, 2000L, 10L);
 
-        assertThat(serverPid, is(serverChannel.getServerPid()));
+        // client can now connect
+        clientChannel.connect(3, TimeUnit.SECONDS);
 
-        connectFuture.get(5, TimeUnit.SECONDS);
+        acceptFuture.get(4, TimeUnit.SECONDS);
     }
 
     //

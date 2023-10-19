@@ -20,8 +20,8 @@ public class ShmemChannelClientDemo {
         final Path tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
         final Path flinkPath = tempDir.resolve("shared_channel_demo.shmem");
 
-        final boolean debug = true;
-        final int iterations = 2;
+        final boolean debug = false;
+        final int iterations = 200000;
 
         try (final Shmem shmem = new ShmemFactory()
                 .setFlink(flinkPath.toString())
