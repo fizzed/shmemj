@@ -162,50 +162,50 @@ public class ShmemChannelTest {
                 try {
                     serverChannel.getServerPid();
                     fail();
-                } catch (IllegalStateException e) {
-                    assertThat(e.getMessage(), containsString("memory backing this channel is destroyed"));
+                } catch (ShmemDestroyedException e) {
+                    // expected
                 }
 
                 try {
                     serverChannel.getClientPid();
                     fail();
-                } catch (IllegalStateException e) {
-                    assertThat(e.getMessage(), containsString("memory backing this channel is destroyed"));
+                } catch (ShmemDestroyedException e) {
+                    // expected
                 }
 
                 try {
                     serverChannel.isSpinLocks();
                     fail();
-                } catch (IllegalStateException e) {
-                    assertThat(e.getMessage(), containsString("memory backing this channel is destroyed"));
+                } catch (ShmemDestroyedException e) {
+                    // expected
                 }
 
                 try {
                     serverChannel.accept(1, TimeUnit.SECONDS);
                     fail();
-                } catch (IllegalStateException e) {
-                    assertThat(e.getMessage(), containsString("memory backing this channel is destroyed"));
+                } catch (ShmemDestroyedException e) {
+                    // expected
                 }
 
                 try {
                     serverChannel.connect(1, TimeUnit.SECONDS);
                     fail();
-                } catch (IllegalStateException e) {
-                    assertThat(e.getMessage(), containsString("memory backing this channel is destroyed"));
+                } catch (ShmemDestroyedException e) {
+                     // expected
                 }
 
                 try {
                     serverChannel.read(1, TimeUnit.SECONDS);
                     fail();
-                } catch (IllegalStateException e) {
-                    assertThat(e.getMessage(), containsString("memory backing this channel is destroyed"));
+                } catch (ShmemDestroyedException e) {
+                    // expected
                 }
 
                 try {
                     serverChannel.write(1, TimeUnit.SECONDS);
                     fail();
-                } catch (IllegalStateException e) {
-                    assertThat(e.getMessage(), containsString("memory backing this channel is destroyed"));
+                } catch (ShmemDestroyedException e) {
+                    // expected
                 }
             } finally {
                 clientShmem.close();
@@ -593,7 +593,7 @@ public class ShmemChannelTest {
                         connectWaitLatch.countDown();
                         serverChannel.accept(2, TimeUnit.SECONDS);
                         fail();
-                    } catch (ClosedChannelException e) {
+                    } catch (ShmemDestroyedException e) {
                         // expected
                     }
                 });
@@ -625,7 +625,7 @@ public class ShmemChannelTest {
                         connectWaitLatch.countDown();
                         clientChannel.connect(2, TimeUnit.SECONDS);
                         fail();
-                    } catch (ClosedChannelException e) {
+                    } catch (ShmemDestroyedException e) {
                         // expected
                     }
                 });
@@ -659,7 +659,8 @@ public class ShmemChannelTest {
                         readWaitLatch.countDown();
                         serverChannel.read(2, TimeUnit.SECONDS);
                         fail();
-                    } catch (ClosedChannelException e) {
+                    } catch (ShmemDestroyedException e) {
+                        log.debug("Destroyed");
                         // expected
                     }
                 });
@@ -670,9 +671,12 @@ public class ShmemChannelTest {
                 Thread.sleep(500L);
 
                 // owner closes (should unblock itself & client)
+                log.debug("Closing clientShmem");
                 clientShmem.close();
+                log.debug("Closing serverShmem");
                 serverShmem.close();
 
+                log.debug("Awaiting now...");
                 this.awaitSecs(readFuture, 5);
             } finally {
                 clientShmem.close();
@@ -696,7 +700,7 @@ public class ShmemChannelTest {
                         writeWaitLatch.countDown();
                         serverChannel.write(2, TimeUnit.SECONDS);
                         fail();
-                    } catch (ClosedChannelException e) {
+                    } catch (ShmemDestroyedException e) {
                         // expected
                     }
                 });

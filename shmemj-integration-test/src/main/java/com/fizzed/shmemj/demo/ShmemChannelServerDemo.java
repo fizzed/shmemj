@@ -1,96 +1,56 @@
 package com.fizzed.shmemj.demo;
 
-import com.fizzed.shmemj.Shmem;
-import com.fizzed.shmemj.ShmemChannel;
-import com.fizzed.shmemj.ShmemChannelFactory;
-import com.fizzed.shmemj.ShmemFactory;
+import com.fizzed.shmemj.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
+
+import static com.fizzed.shmemj.demo.DemoHelper.*;
 
 public class ShmemChannelServerDemo {
     static private final Logger log = LoggerFactory.getLogger(ShmemChannelServerDemo.class);
 
     static public void main(String[] args) throws Exception {
-        final Path tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
-        final Path flinkPath = tempDir.resolve("shared_channel_demo.shmem");
-        Files.deleteIfExists(flinkPath);
+        final ShmemChannel channel = new ShmemChannelFactory2()
+            .setAddress(temporaryFile("shmem_channel_demo.sock"))
+            .setSize(4096L)
+            .createServerChannel();
 
-        final boolean debug = false;
         boolean shutdown = false;
+        while (!shutdown) {
+            try {
+                log.info("Listening on channel {}", channel.getAddress());
 
-        final Shmem shmem = new ShmemFactory()
-            .setSize(8192L)
-            .setFlink(flinkPath.toString())
-            // will cause segfault if we're waiting in a read() call
-            // TODO: make shutdown hook gracefully cleanup resources
-            .setDestroyOnExit(true)
-            .create();
+                long clientPid = channel.accept(120, TimeUnit.SECONDS);
 
-        log.info("Created shmem: owner={}, size={}, os_id={}, flink={}", shmem.isOwner(), shmem.getSize(), shmem.getOsId(), shmem.getFlink());
+                log.info("Connected with client process pid={}", clientPid);
 
-        try (final Shmem s = shmem) {
-
-            final ShmemChannel channel = new ShmemChannelFactory()
-                .setShmem(shmem)
-                .setSpinLocks(true)
-                .create();
-
-            while (!shutdown) {
-                try (final ShmemChannel c = channel) {
-                    // we'll connect ourselves, then wait for the client
-                    log.info("Waiting for client process to connect...");
-
-                    final long clientPid = channel.accept(120, TimeUnit.SECONDS);
-
-                    log.info("Connected with client process {}", clientPid);
-
-                    int count = 0;
-                    while (!shutdown) {
-                        long iteration = 0;
-
-                        if (debug) log.info("readBegin(): waiting for request #{}", count);
-
-                        try (final ShmemChannel.Read read = channel.read(120, TimeUnit.SECONDS)) {
-                            final ByteBuffer readBuffer = read.getBuffer();
-
-                            if (debug)
-                                log.info("readEnd(): received request #{} ({} bytes)", iteration, readBuffer.remaining());
-
-                            iteration = readBuffer.getLong();
-                            long v2 = readBuffer.getLong();
-                            long v3 = readBuffer.getLong();
-
-                            if (debug) log.info(" iteration={}, v2={}, v3={}", iteration, v2, v3);
-                        }
-
-                        // we want to write to the channel!
-                        if (debug) log.info("beginWrite(): want to send response #{}", iteration);
-
-                        try (final ShmemChannel.Write write = channel.write(120, TimeUnit.SECONDS)) {
-                            final ByteBuffer writeBuffer = write.getBuffer();
-
-                            writeBuffer.putLong(iteration);
-
-                            if (debug)
-                                log.info("writeEnd(): sent response #{} ({} bytes)", iteration, writeBuffer.position());
-                        }
-
-                        count++;
+                while (!shutdown) {
+                    // recv request
+                    String req;
+                    try (ShmemChannel.Read read = channel.read(5, TimeUnit.SECONDS)) {
+                        req = getStringUTF8(read.getBuffer());
+                        log.debug("Received: {}", req);
                     }
-                } catch (ClosedChannelException e) {
-                    log.info("Channel closed");
+
+                    // send response
+                    try (ShmemChannel.Write write = channel.write(5, TimeUnit.SECONDS)) {
+                        String resp = req + " World!";
+                        putStringUTF8(write.getBuffer(), resp);
+                        log.debug("Sending: {}", resp);
+                    }
                 }
+            } catch (ClosedChannelException e) {
+                log.info("Closed channel {}", channel.getAddress());
+            } catch (ShmemDestroyedException e) {
+                log.info("Destroyed channel {}", channel.getAddress());
+                shutdown = true;
             }
         }
 
-        log.info("Done, shmem will have been deleted");
+        log.info("Done. Exiting.");
     }
 
 }

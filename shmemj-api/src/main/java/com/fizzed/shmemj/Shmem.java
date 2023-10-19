@@ -10,11 +10,11 @@ public class Shmem implements AutoCloseable {
 
     /** pointer to the native object */
     private long ptr;
-    final private CopyOnWriteArrayList<AutoCloseable> closeables;
+    final private CopyOnWriteArrayList<ShmemDestroyable> destroyables;
 
     public Shmem() {
         this.ptr = 0;
-        this.closeables = new CopyOnWriteArrayList<>();
+        this.destroyables = new CopyOnWriteArrayList<>();
     }
 
     public String getOsId() {
@@ -71,12 +71,12 @@ public class Shmem implements AutoCloseable {
         return this.nativeNewByteBuffer(offset, length);
     }
 
-    void addCloseable(AutoCloseable closeable) {
-        this.closeables.addIfAbsent(closeable);
+    void registerDestroyable(ShmemDestroyable destroyable) {
+        this.destroyables.addIfAbsent(destroyable);
     }
 
-    void removeCloseable(AutoCloseable closeable) {
-        this.closeables.remove(closeable);
+    void unregisterDestroyable(ShmemDestroyable destroyable) {
+        this.destroyables.remove(destroyable);
     }
 
     public boolean isDestroyed() {
@@ -86,11 +86,11 @@ public class Shmem implements AutoCloseable {
     @Override
     public void close() {
         // close all resources first in reverse order
-        while (!this.closeables.isEmpty()) {
+        while (!this.destroyables.isEmpty()) {
             // remove the last one
-            AutoCloseable closeable = this.closeables.remove(this.closeables.size()-1);
+            ShmemDestroyable destroyable = this.destroyables.remove(this.destroyables.size()-1);
             try {
-                closeable.close();
+                destroyable.destroy();
             } catch (Exception e) {
                 // do we ignore this?
             }

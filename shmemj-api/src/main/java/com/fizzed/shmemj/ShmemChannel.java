@@ -6,15 +6,13 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.ConnectException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
-import java.nio.channels.NotYetConnectedException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class ShmemChannel implements AutoCloseable {
+public class ShmemChannel implements AutoCloseable, ShmemDestroyable {
     static private final Logger log = LoggerFactory.getLogger(ShmemChannel.class);
 
     // probably best to keep control buffer as divisible by 8
@@ -122,6 +120,7 @@ public class ShmemChannel implements AutoCloseable {
     }
 
     private final Shmem shmem;
+    private final String address;
     private final boolean server;
     private final Control control;
     private final ShmemCondition clientConnectCondition;;
@@ -134,7 +133,7 @@ public class ShmemChannel implements AutoCloseable {
     private final AtomicBoolean connecting;
     private final AtomicBoolean reading;
     private final AtomicBoolean writing;
-    private final AtomicBoolean closed;
+    private boolean destroyed;
 
     public ShmemChannel(Shmem shmem, Control control, ShmemCondition clientConnectCondition, ShmemCondition serverWriteCondition,
                         ShmemCondition serverReadCondition, ShmemCondition clientWriteCondition,
@@ -153,7 +152,22 @@ public class ShmemChannel implements AutoCloseable {
         this.connecting = new AtomicBoolean(false);
         this.reading = new AtomicBoolean(false);
         this.writing = new AtomicBoolean(false);
-        this.closed = new AtomicBoolean(false);
+        this.destroyed = false;
+
+        String flink = this.shmem.getFlink();
+        if (flink != null) {
+            this.address = "shmem://" + flink;
+        } else {
+            this.address = "shmem+osid://" + this.shmem.getOsId();
+        }
+    }
+
+    public Shmem getShmem() {
+        return shmem;
+    }
+
+    public String getAddress() {
+        return address;
     }
 
     public boolean isServer() {
@@ -161,41 +175,22 @@ public class ShmemChannel implements AutoCloseable {
     }
 
     public long getServerPid() {
-        this.checkShmem();
+        this.checkShmem(true);
         return this.control.getServerPid();
     }
 
     public long getClientPid() {
-        this.checkShmem();
+        this.checkShmem(true);
         return this.control.getClientPid();
     }
 
     public boolean isSpinLocks() {
-        this.checkShmem();
+        this.checkShmem(true);
         return this.control.isSpinLocks();
     }
 
-    /*protected long awaitConnected(long timeout, TimeUnit unit) throws IOException, TimeoutException, InterruptedException {
-        // we need to wait for th other party to signal
-        final ShmemCondition condition = this.server ? this.serverWriteCondition : this.clientWriteCondition;
-        boolean signaled = condition.await(timeout, unit);
-        if (!signaled) {
-            throw new TimeoutException();
-        }
-
-        // since we consumed the signal above, we need to reset it so a "write" won't block
-        condition.signal();
-
-        // what happened to the other party?
-        final long pid = this.server ? this.getClientPid() : this.getServerPid();
-
-        this.checkClosed(false);
-
-        return pid;
-    }*/
-
     public long accept(long timeout, TimeUnit unit) throws IOException, InterruptedException, TimeoutException {
-        this.checkShmem();
+        this.checkShmem(true);
 
         // only servers can accept
         if (!this.server) {
@@ -224,14 +219,14 @@ public class ShmemChannel implements AutoCloseable {
                 }
 
                 // double check client is connected (we could have been signaled to close)
-                this.checkClosed(false);
+                this.checkClosed(true);
 
                 // now we can signal that writes are allowed
                 this.clientWriteCondition.signal();
                 this.serverWriteCondition.signal();
 
                 // register ourselves with the shmem to be closed if its closed
-                this.shmem.addCloseable(this);
+                this.shmem.registerDestroyable(this);
 
                 return this.getClientPid();
             } catch (TimeoutException e) {
@@ -244,7 +239,7 @@ public class ShmemChannel implements AutoCloseable {
     }
 
     public long connect(long timeout, TimeUnit unit) throws IOException, InterruptedException, TimeoutException {
-        this.checkShmem();
+        this.checkShmem(true);
 
         // only clients can connect
         if (this.server) {
@@ -262,7 +257,7 @@ public class ShmemChannel implements AutoCloseable {
             }
 
             // double check client is connected (we could have been signaled to close)
-            this.checkClosed(false);
+            this.checkClosed(true);
 
             // signal the server we are ready
             this.clientConnectCondition.signal();
@@ -272,10 +267,10 @@ public class ShmemChannel implements AutoCloseable {
             // TODO: should we let the server signal us now?
 
             // register ourselves with the shmem to be closed if its closed
-            this.shmem.addCloseable(this);
+            this.shmem.registerDestroyable(this);
 
             return this.control.getServerPid();
-        } catch (IOException | TimeoutException | InterruptedException e) {
+        } catch (Exception e) {
             this.control.setClientPid(NOT_CONNECTED_PID);
             throw e;
         } finally {
@@ -288,7 +283,7 @@ public class ShmemChannel implements AutoCloseable {
     }
 
     protected boolean isServerClosed() {
-        this.checkShmem();
+        this.checkShmem(true);
 
         final long serverPid = this.control.getServerPid();
 
@@ -296,25 +291,45 @@ public class ShmemChannel implements AutoCloseable {
     }
 
     protected boolean isClientClosed() {
-        this.checkShmem();
+        this.checkShmem(true);
 
         final long clientPid = this.control.getClientPid();
 
         return clientPid <= NOT_CONNECTED_PID;
     }
 
-    protected void checkClosed(boolean forWriting) throws IOException {
-        this.checkShmem();
+    protected void checkClosed(boolean includeDestroyed) throws IOException {
+        this.checkShmem(includeDestroyed);
 
         if (this.isClosed()) {
             throw new ClosedChannelException();
         }
     }
 
+    protected void checkShmem(boolean includeDestroyed) {
+        if (includeDestroyed && this.destroyed) {
+            throw new ShmemDestroyedException("Shmem channel was destroyed");
+        }
+        if (this.shmem.isDestroyed()) {
+            throw new ShmemDestroyedException("Shared memory backing this channel is destroyed (you should ensure you have closed the channel before the shared memory!)");
+        }
+    }
+
+    @Override
+    public void destroy() throws Exception {
+        // mark that we are being destroyed
+        this.destroyed = true;
+
+        // delegate rest of destroying to close
+        this.close();
+
+        // TODO: if we "own" the shmem, its now safe to destroy it
+    }
+
     @Override
     public void close() throws Exception {
         // TODO: should we ignore a bad shmem and mark this as closed?
-        this.checkShmem();
+        this.checkShmem(false);
 
         // mark the side that is initiating the close
         if (this.server) {
@@ -336,18 +351,12 @@ public class ShmemChannel implements AutoCloseable {
         WaitFor.requireMillis(() -> !this.reading.get(), 5000, 25);
         WaitFor.requireMillis(() -> !this.writing.get(), 5000, 25);
 
-        this.shmem.removeCloseable(this);
-    }
-
-    protected void checkShmem() {
-        if (this.shmem.isDestroyed()) {
-            throw new IllegalStateException("Shared memory backing this channel is destroyed (you should ensure you have closed the channel before the shared memory!)");
-        }
+        this.shmem.unregisterDestroyable(this);
     }
 
     public Write write(long timeout, TimeUnit unit) throws IOException, TimeoutException, InterruptedException {
         // 1. check if the channel is closed
-        this.checkClosed(false);
+        this.checkClosed(true);
 
         this.writing.set(true);
         try {
@@ -359,13 +368,13 @@ public class ShmemChannel implements AutoCloseable {
             }
 
             // 3. check if we were signaled b/c the channel is closed
-            this.checkClosed(false);
+            this.checkClosed(true);
 
             // 4. ready for writing
             final ByteBuffer buffer = this.server ? this.serverBuffer : this.clientBuffer;
             buffer.rewind();
             return new Write(buffer);
-        } catch (IOException | TimeoutException |InterruptedException e) {
+        } catch (Exception e) {
             this.writing.set(false);
             throw e;
         }
@@ -373,7 +382,7 @@ public class ShmemChannel implements AutoCloseable {
 
     protected void writeEnd() {
         // TODO: is this overkill?
-        this.checkShmem();
+        this.checkShmem(true);
 
         if (this.server) {
             // client may now read AND must be the only operation that occurs next
@@ -388,7 +397,7 @@ public class ShmemChannel implements AutoCloseable {
 
     public Read read(long timeout, TimeUnit unit) throws IOException, TimeoutException, InterruptedException {
         // 1. check if the channel is closed
-        this.checkClosed(false);
+        this.checkClosed(true);
 
         this.reading.set(true);
         try {
@@ -400,13 +409,13 @@ public class ShmemChannel implements AutoCloseable {
             }
 
             // 3. check if we were signaled b/c the channel is closed
-            this.checkClosed(false);
+            this.checkClosed(true);
 
             // 4. ready for reading
             final ByteBuffer buffer = this.server ? this.clientBuffer : this.serverBuffer;
             buffer.rewind();
             return new Read(buffer);
-        } catch (IOException | TimeoutException |InterruptedException e) {
+        } catch (Exception e) {
             this.reading.set(false);
             throw e;
         }
@@ -414,7 +423,7 @@ public class ShmemChannel implements AutoCloseable {
 
     private void readEnd() {
         // TODO: is this overkill?
-        this.checkShmem();
+        this.checkShmem(true);
 
         if (this.server) {
             // client may now write
@@ -510,7 +519,7 @@ public class ShmemChannel implements AutoCloseable {
 
         ShmemChannel channel = new ShmemChannel(shmem, control, clientConnectCondition, serverWriteCondition, serverReadCondition, clientWriteCondition, clientReadCondition, serverBuffer, clientBuffer);
 
-        shmem.addCloseable(channel);
+        shmem.registerDestroyable(channel);
 
         return channel;
     }

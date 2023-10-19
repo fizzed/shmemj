@@ -66,7 +66,7 @@ public class ShmemChannelFactory2 {
     }
 
     public ShmemChannel createClientChannel() {
-        final Shmem shmem = this.shmemFactory.create();
+        final Shmem shmem = this.shmemFactory.open();
 
         return ShmemChannel.existing(shmem);
     }

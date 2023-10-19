@@ -2,8 +2,15 @@ package com.fizzed.shmemj.demo;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class DemoHelper {
+
+    static public Path temporaryFile(String filename) {
+        final Path tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
+        return tempDir.resolve(filename);
+    }
 
     static public void putStringUTF8(ByteBuffer buf, String message) {
         byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
