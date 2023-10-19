@@ -1,22 +1,52 @@
 package com.fizzed.shmemj;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.Objects;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class ShmemChannelFactory {
-    static private final Logger log = LoggerFactory.getLogger(ShmemChannelFactory.class);
 
-    private Shmem shmem;
+    private final ShmemFactory shmemFactory;
     private boolean spinLocks;
 
-    public Shmem getShmem() {
-        return shmem;
+    public ShmemChannelFactory() {
+        this.shmemFactory = new ShmemFactory();
+        this.setDestroyOnExit(true);
+        this.spinLocks = true;
     }
 
-    public ShmemChannelFactory setShmem(Shmem shmem) {
-        this.shmem = shmem;
+    public long getSize() {
+        return this.shmemFactory.getSize();
+    }
+
+    public ShmemChannelFactory setSize(long size) {
+        this.shmemFactory.setSize(size);
+        return this;
+    }
+
+    public String getOsId() {
+        return this.shmemFactory.getOsId();
+    }
+
+    public ShmemChannelFactory setOsId(String osId) {
+        this.shmemFactory.setOsId(osId);
+        return this;
+    }
+
+    public Path getAddress() {
+        return Paths.get(this.shmemFactory.getFlink());
+    }
+
+    public ShmemChannelFactory setAddress(Path file) {
+        this.shmemFactory.setFlink(file.toAbsolutePath().toString());
+        return this;
+    }
+
+    public boolean isDestroyOnExit() {
+        return this.shmemFactory.isDestroyOnExit();
+    }
+
+    public ShmemChannelFactory setDestroyOnExit(boolean destroyOnExit) {
+        this.shmemFactory.setDestroyOnExit(destroyOnExit);
         return this;
     }
 
@@ -29,14 +59,16 @@ public class ShmemChannelFactory {
         return this;
     }
 
-    public ShmemChannel create() {
-        Objects.requireNonNull(this.shmem, "shmem was null");
-        return ShmemChannel.create(this.shmem, this.spinLocks);
+    public ShmemServerChannel createServerChannel() {
+        final Shmem shmem = this.shmemFactory.create();
+
+        return DefaultShmemChannel.create(shmem, this.spinLocks);
     }
 
-    public ShmemChannel existing() {
-        Objects.requireNonNull(this.shmem, "shmem was null");
-        return ShmemChannel.existing(this.shmem);
+    public ShmemClientChannel createClientChannel() {
+        final Shmem shmem = this.shmemFactory.open();
+
+        return DefaultShmemChannel.existing(shmem);
     }
 
 }

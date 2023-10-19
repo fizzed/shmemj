@@ -3,18 +3,18 @@ package com.fizzed.shmemj;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class Shmem implements AutoCloseable {
+public class Shmem implements java.lang.AutoCloseable {
     static {
         LibraryLoader.loadLibrary();
     }
 
     /** pointer to the native object */
     private long ptr;
-    final private CopyOnWriteArrayList<ShmemDestroyable> destroyables;
+    final private CopyOnWriteArrayList<AutoCloseable> resources;
 
     public Shmem() {
         this.ptr = 0;
-        this.destroyables = new CopyOnWriteArrayList<>();
+        this.resources = new CopyOnWriteArrayList<>();
     }
 
     public String getOsId() {
@@ -71,12 +71,12 @@ public class Shmem implements AutoCloseable {
         return this.nativeNewByteBuffer(offset, length);
     }
 
-    void registerDestroyable(ShmemDestroyable destroyable) {
-        this.destroyables.addIfAbsent(destroyable);
+    void registerResource(AutoCloseable resource) {
+        this.resources.addIfAbsent(resource);
     }
 
-    void unregisterDestroyable(ShmemDestroyable destroyable) {
-        this.destroyables.remove(destroyable);
+    void unregisterResource(AutoCloseable resource) {
+        this.resources.remove(resource);
     }
 
     public boolean isDestroyed() {
@@ -86,11 +86,11 @@ public class Shmem implements AutoCloseable {
     @Override
     public void close() {
         // close all resources first in reverse order
-        while (!this.destroyables.isEmpty()) {
+        while (!this.resources.isEmpty()) {
             // remove the last one
-            ShmemDestroyable destroyable = this.destroyables.remove(this.destroyables.size()-1);
+            AutoCloseable resource = this.resources.remove(this.resources.size()-1);
             try {
-                destroyable.destroy();
+                resource.close();
             } catch (Exception e) {
                 // do we ignore this?
             }
