@@ -14,6 +14,8 @@ public interface ShmemChannel extends AutoCloseable {
 
     long getClientPid();
 
+    boolean isClosed();
+
     @Override
     void close() throws Exception;
 

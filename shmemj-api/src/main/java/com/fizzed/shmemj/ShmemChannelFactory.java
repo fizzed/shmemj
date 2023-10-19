@@ -7,11 +7,13 @@ public class ShmemChannelFactory {
 
     private final ShmemFactory shmemFactory;
     private boolean spinLocks;
+    private ProcessProvider processProvider;
 
     public ShmemChannelFactory() {
         this.shmemFactory = new ShmemFactory();
         this.setDestroyOnExit(true);
         this.spinLocks = true;
+        this.processProvider = ProcessProvider.DEFAULT;
     }
 
     public long getSize() {
@@ -59,16 +61,25 @@ public class ShmemChannelFactory {
         return this;
     }
 
+    public ProcessProvider getProcessProvider() {
+        return processProvider;
+    }
+
+    public ShmemChannelFactory setProcessProvider(ProcessProvider processProvider) {
+        this.processProvider = processProvider;
+        return this;
+    }
+
     public ShmemServerChannel createServerChannel() {
         final Shmem shmem = this.shmemFactory.create();
 
-        return DefaultShmemChannel.create(shmem, this.spinLocks);
+        return DefaultShmemChannel.create(this.processProvider, shmem, this.spinLocks);
     }
 
     public ShmemClientChannel createClientChannel() {
         final Shmem shmem = this.shmemFactory.open();
 
-        return DefaultShmemChannel.existing(shmem);
+        return DefaultShmemChannel.existing(this.processProvider, shmem);
     }
 
 }

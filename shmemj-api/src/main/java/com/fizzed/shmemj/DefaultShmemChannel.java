@@ -5,10 +5,10 @@ import com.fizzed.crux.util.WaitFor;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChannel {
 
@@ -23,7 +23,7 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
     static private final long NOT_CONNECTED_PID = 0L;
     static private final byte MAGIC = (byte)42;         // random value to detect this is most likely a shmem channel
     static private final byte VERSION_1_0 = (byte)10;   // safety of versioned channels in case of long running processes...
-    static private final byte STANDARD_LOCKS = (byte)0;
+    static private final byte THREAD_LOCKS = (byte)0;
     static private final byte SPIN_LOCKS = (byte)1;
 
     static private class Control {
@@ -75,7 +75,7 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         }
 
         public void setSpinLocks(boolean spinLocks) {
-            this.buffer.put(CONTROL_SPIN_LOCK_POS, spinLocks ? SPIN_LOCKS : STANDARD_LOCKS);
+            this.buffer.put(CONTROL_SPIN_LOCK_POS, spinLocks ? SPIN_LOCKS : THREAD_LOCKS);
         }
     }
 
@@ -119,6 +119,7 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
     private final Shmem shmem;
     private final String address;
     private final boolean server;
+    private final ProcessProvider processProvider;
     private final Control control;
     private final ShmemCondition clientConnectCondition;;
     private final ShmemCondition serverWriteCondition;
@@ -132,12 +133,13 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
     private final AtomicBoolean writing;
     private boolean destroyed;
 
-    private DefaultShmemChannel(Shmem shmem, Control control, ShmemCondition clientConnectCondition, ShmemCondition serverWriteCondition,
-                                ShmemCondition serverReadCondition, ShmemCondition clientWriteCondition,
+    private DefaultShmemChannel(Shmem shmem, ProcessProvider processProvider, Control control, ShmemCondition clientConnectCondition,
+                                ShmemCondition serverWriteCondition, ShmemCondition serverReadCondition, ShmemCondition clientWriteCondition,
                                 ShmemCondition clientReadCondition, ByteBuffer serverBuffer, ByteBuffer clientBuffer) {
 
         this.shmem = shmem;
         this.server = shmem.isOwner();
+        this.processProvider = processProvider;
         this.control = control;
         this.clientConnectCondition = clientConnectCondition;
         this.serverWriteCondition = serverWriteCondition;
@@ -212,7 +214,7 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
 
         try {
             // set the pid to indicate our end is ready (after this is done, a client can theoretically connect now)
-            this.control.setServerPid(ProcessHandle.current().pid());
+            this.control.setServerPid(this.processProvider.getCurrentPid());
 
             try {
                 // wait for the client to connect
@@ -222,16 +224,12 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
                 }
 
                 // double check client is connected (we could have been signaled to close)
-                this.checkClosed(true);
+                this.checkConnectionClosed(true);
 
                 // now we can signal that writes are allowed
                 this.clientWriteCondition.signal();
                 this.serverWriteCondition.signal();
 
-                // register ourselves with the shmem to be closed if its closed
-                this.shmem.registerResource(this);
-
-                //return this.getClientPid();
                 return new ShmemChannelConnection(this);
             } catch (TimeoutException e) {
                 this.control.setServerPid(NOT_CONNECTED_PID);
@@ -253,27 +251,23 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         this.connecting.set(true);
         try {
             // set the pid to indicate our end is ready
-            this.control.setClientPid(ProcessHandle.current().pid());
+            this.control.setClientPid(this.processProvider.getCurrentPid());
 
             // we could wait for the server pid OR someone closing this client
-            if (!WaitFor.of(() -> this.control.getServerPid() > 0 || this.isClientClosed()).awaitMillis(unit.toMillis(timeout), 50L)) {
+            if (!WaitFor.of(() -> this.control.getServerPid() > 0 || this.isClientConnectionClosed()).awaitMillis(unit.toMillis(timeout), 50L)) {
                 throw new TimeoutException();
             }
 
             // double check client is connected (we could have been signaled to close)
-            this.checkClosed(true);
+            this.checkConnectionClosed(true);
 
             // signal the server we are ready
             this.clientConnectCondition.signal();
 
             // NOTE: it's possible that despite the signal above, the server accept() could have timed out, so we
             // have not really connected to it, we'll see if that's an issue
-            // TODO: should we let the server signal us now?
+            // TODO: should we let the server signal us now? based on testing this does not seem to be an issue
 
-            // register ourselves with the shmem to be closed if its closed
-            this.shmem.registerResource(this);
-
-//            return this.control.getServerPid();
             return new ShmemChannelConnection(this);
         } catch (Exception e) {
             this.control.setClientPid(NOT_CONNECTED_PID);
@@ -283,11 +277,11 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         }
     }
 
-    protected boolean isClosed() {
-        return this.isServerClosed() || this.isClientClosed();
+    protected boolean isConnectionClosed() {
+        return this.isServerConnectionClosed() || this.isClientConnectionClosed();
     }
 
-    protected boolean isServerClosed() {
+    protected boolean isServerConnectionClosed() {
         this.checkShmem(true);
 
         final long serverPid = this.control.getServerPid();
@@ -295,7 +289,7 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         return serverPid <= NOT_CONNECTED_PID;
     }
 
-    protected boolean isClientClosed() {
+    protected boolean isClientConnectionClosed() {
         this.checkShmem(true);
 
         final long clientPid = this.control.getClientPid();
@@ -303,11 +297,11 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         return clientPid <= NOT_CONNECTED_PID;
     }
 
-    protected void checkClosed(boolean includeDestroyed) throws IOException {
+    protected void checkConnectionClosed(boolean includeDestroyed) throws IOException {
         this.checkShmem(includeDestroyed);
 
-        if (this.isClosed()) {
-            throw new ClosedChannelException();
+        if (this.isConnectionClosed()) {
+            throw new ShmemClosedConnectionException("Connection closed");
         }
     }
 
@@ -318,6 +312,27 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         if (this.shmem.isDestroyed()) {
             throw new ShmemDestroyedException("Shared memory backing this channel is destroyed (you should ensure you have closed the channel before the shared memory!)");
         }
+    }
+
+    private Consumer<Long> createProcessDiedMonitor() {
+        long remotePid = this.server ? this.getClientPid() : this.getServerPid();
+        return new Consumer<>() {
+            private long lastElaspedMillis = 0;
+            @Override
+            public void accept(Long elapsedMillis) {
+                // only check every 1 sec so we're not doing this too frequently
+                if ((elapsedMillis - lastElaspedMillis) >= 1000L) {
+                    if (!DefaultShmemChannel.this.processProvider.isAlive(remotePid)) {
+                        throw new ShmemProcessDiedException("Process " + remotePid + " either crashed or exited w/o properly closing this channel");
+                    }
+                    lastElaspedMillis = elapsedMillis;
+                }
+            }
+        };
+    }
+
+    public boolean isClosed() {
+        return this.destroyed;
     }
 
     @Override
@@ -332,9 +347,11 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
 
         // delegate rest of destroying to close the connection
         this.closeConnection(true);
+
+        this.shmem.unregisterResource(this);
     }
 
-    public void closeConnection(boolean force) throws Exception {
+    public void closeConnection(boolean force) throws InterruptedException, TimeoutException {
         if (!force) {
             if (this.destroyed) {
                 return; // nothing to do
@@ -343,7 +360,7 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
 
         this.checkShmem(false);
 
-        // mark the side that is initiating the close
+        // does the side initiating the close matter?
         if (this.server) {
             this.control.setServerPid(0L);
         } else {
@@ -362,25 +379,25 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         WaitFor.requireMillis(() -> !this.connecting.get(), 5000, 25);
         WaitFor.requireMillis(() -> !this.reading.get(), 5000, 25);
         WaitFor.requireMillis(() -> !this.writing.get(), 5000, 25);
-
-        this.shmem.unregisterResource(this);
     }
 
     protected Write write(long timeout, TimeUnit unit) throws IOException, TimeoutException, InterruptedException {
         // 1. check if the channel is closed
-        this.checkClosed(true);
+        this.checkConnectionClosed(true);
 
         this.writing.set(true);
         try {
+            final Consumer<Long> processCrashDetector = this.createProcessDiedMonitor();
+
             // 2.  wait till we are allowed to write
             final ShmemCondition condition = this.server ? this.serverWriteCondition : this.clientWriteCondition;
-            boolean signaled = condition.await(timeout, unit);
+            boolean signaled = condition.await(timeout, unit, processCrashDetector);
             if (!signaled) {
                 throw new TimeoutException();
             }
 
             // 3. check if we were signaled b/c the channel is closed
-            this.checkClosed(true);
+            this.checkConnectionClosed(true);
 
             // 4. ready for writing
             final ByteBuffer buffer = this.server ? this.serverBuffer : this.clientBuffer;
@@ -388,6 +405,12 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
             return new Write(buffer);
         } catch (Exception e) {
             this.writing.set(false);
+
+            if (e instanceof ShmemProcessDiedException) {
+                this.closeConnection(false);
+                throw new ShmemClosedConnectionException(e);
+            }
+
             throw e;
         }
     }
@@ -409,26 +432,35 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
 
     Read read(long timeout, TimeUnit unit) throws IOException, TimeoutException, InterruptedException {
         // 1. check if the channel is closed
-        this.checkClosed(true);
+        this.checkConnectionClosed(true);
 
         this.reading.set(true);
         try {
+            final Consumer<Long> processCrashDetector = this.createProcessDiedMonitor();
+
             // 2.  wait till we are allowed to read
             final ShmemCondition condition = this.server ? this.serverReadCondition : this.clientReadCondition;
-            final boolean signaled = condition.await(timeout, unit);
+            final boolean signaled = condition.await(timeout, unit, processCrashDetector);
             if (!signaled) {
                 throw new TimeoutException();
             }
 
             // 3. check if we were signaled b/c the channel is closed
-            this.checkClosed(true);
+            this.checkConnectionClosed(true);
 
             // 4. ready for reading
             final ByteBuffer buffer = this.server ? this.clientBuffer : this.serverBuffer;
             buffer.rewind();
             return new Read(buffer);
         } catch (Exception e) {
+            // set reading to false so that close connection doesn't hang
             this.reading.set(false);
+
+            if (e instanceof ShmemProcessDiedException) {
+                this.closeConnection(false);
+                throw new ShmemClosedConnectionException(e);
+            }
+
             throw e;
         }
     }
@@ -448,15 +480,15 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         this.reading.set(false);
     }
 
-    static DefaultShmemChannel create(Shmem shmem, boolean spinLocks) {
-        return createOrExisting(shmem, spinLocks);
+    static DefaultShmemChannel create(ProcessProvider processProvider, Shmem shmem, boolean spinLocks) {
+        return createOrExisting(processProvider, shmem, spinLocks);
     }
 
-    static DefaultShmemChannel existing(Shmem shmem) {
-        return createOrExisting(shmem, false);  // spinLock argument irr
+    static DefaultShmemChannel existing(ProcessProvider processProvider, Shmem shmem) {
+        return createOrExisting(processProvider, shmem, false);  // spinLock argument irr
     }
 
-    static private DefaultShmemChannel createOrExisting(Shmem shmem, Boolean spinLocks) {
+    static private DefaultShmemChannel createOrExisting(ProcessProvider processProvider, Shmem shmem, Boolean spinLocks) {
         long offset = 0L;
 
         // attach the "control" to the memory, so we can quickly detect how to proceed
@@ -529,7 +561,7 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         final ByteBuffer serverBuffer = shmem.newByteBuffer(offset, ownerBufferLen);
         final ByteBuffer clientBuffer = shmem.newByteBuffer(offset+ownerBufferLen, clientBufferLen);
 
-        DefaultShmemChannel channel = new DefaultShmemChannel(shmem, control, clientConnectCondition, serverWriteCondition, serverReadCondition, clientWriteCondition, clientReadCondition, serverBuffer, clientBuffer);
+        DefaultShmemChannel channel = new DefaultShmemChannel(shmem, processProvider, control, clientConnectCondition, serverWriteCondition, serverReadCondition, clientWriteCondition, clientReadCondition, serverBuffer, clientBuffer);
 
         shmem.registerResource(channel);
 

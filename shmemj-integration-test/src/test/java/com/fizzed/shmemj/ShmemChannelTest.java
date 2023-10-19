@@ -1,6 +1,7 @@
 package com.fizzed.shmemj;
 
 import com.fizzed.crux.util.WaitFor;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,11 +9,11 @@ import org.slf4j.LoggerFactory;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.*;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.*;
 
 public class ShmemChannelTest {
     static private final Logger log = LoggerFactory.getLogger(ShmemChannelTest.class);
@@ -22,6 +23,16 @@ public class ShmemChannelTest {
     //
 
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
+    private ProcessProvider serverProcessProvider;
+    private ProcessProvider clientProcessProvider;
+
+    @BeforeEach
+    public void beforeEach() {
+        this.serverProcessProvider = mock(ProcessProvider.class);
+        doReturn(12345L).when(this.serverProcessProvider).getCurrentPid();
+        this.clientProcessProvider = mock(ProcessProvider.class);
+        doReturn(98765L).when(this.clientProcessProvider).getCurrentPid();
+    }
 
     public interface Async {
         void apply() throws Exception;
@@ -78,21 +89,19 @@ public class ShmemChannelTest {
             .setSize(size)
             .create();
 
-        final ShmemServerChannel serverChannel = DefaultShmemChannel.create(serverShmem, spinLocks);
+        final ShmemServerChannel serverChannel = DefaultShmemChannel.create(this.serverProcessProvider, serverShmem, spinLocks);
 
         final Shmem clientShmem = new ShmemFactory()
             .setOsId(serverShmem.getOsId())
             .open();
 
-        final ShmemClientChannel clientChannel = DefaultShmemChannel.existing(clientShmem);
+        final ShmemClientChannel clientChannel = DefaultShmemChannel.existing(this.clientProcessProvider, clientShmem);
 
-        try {
-            consumer.apply(serverChannel, clientChannel);
-        } finally {
-            // always cleanup
-            clientChannel.close();
-            serverChannel.close();
-        }
+        consumer.apply(serverChannel, clientChannel);
+
+        // always cleanup
+        clientChannel.close();
+        serverChannel.close();
     }
 
     private void connectChannels(ShmemServerChannel serverChannel, ShmemClientChannel clientChannel, ConnectChannelsConsumer consumer) throws Exception {
@@ -108,13 +117,11 @@ public class ShmemChannelTest {
 
         ShmemChannelConnection serverConn = acceptFuture.get(4, TimeUnit.SECONDS);
 
-        try {
-            consumer.apply(serverConn, clientConn);
-        } finally {
-            // always cleanup
-            clientConn.close();
-            serverConn.close();
-        }
+        consumer.apply(serverConn, clientConn);
+
+        // always cleanup
+        clientConn.close();
+        serverConn.close();
     }
 
     //
@@ -157,7 +164,7 @@ public class ShmemChannelTest {
 
         try {
             // try to "existing" which is a non-initialized shmem
-            final ShmemChannel channel = DefaultShmemChannel.existing(clientShmem);
+            final ShmemChannel channel = DefaultShmemChannel.existing(this.serverProcessProvider, clientShmem);
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString("unexpected magic value"));
         } finally {
@@ -236,7 +243,7 @@ public class ShmemChannelTest {
             final Future<?> acceptFuture = this.async(() -> {
                 ShmemChannelConnection conn = serverChannel.accept(3, TimeUnit.SECONDS);
 
-                assertThat(conn.getRemotePid(), is(serverChannel.getServerPid()));
+                assertThat(conn.getRemotePid(), is(serverChannel.getClientPid()));
             });
 
             final ShmemChannelConnection conn = clientChannel.connect(5, TimeUnit.SECONDS);
@@ -311,7 +318,7 @@ public class ShmemChannelTest {
 
             final ShmemChannelConnection conn = serverChannel.accept(5, TimeUnit.SECONDS);
 
-            assertThat(conn.getRemotePid(), is(serverChannel.getServerPid()));
+            assertThat(conn.getRemotePid(), is(serverChannel.getClientPid()));
 
             connectFuture.get(5, TimeUnit.SECONDS);
         });
@@ -327,14 +334,14 @@ public class ShmemChannelTest {
                 try {
                     serverConn.write(5, TimeUnit.SECONDS);
                     fail();
-                } catch (ClosedChannelException e) {
+                } catch (ShmemClosedConnectionException e) {
                     // expected
                 }
 
                 try {
                     serverConn.read(5, TimeUnit.SECONDS);
                     fail();
-                } catch (ClosedChannelException e) {
+                } catch (ShmemClosedConnectionException e) {
                     // expected
                 }
 
@@ -355,14 +362,14 @@ public class ShmemChannelTest {
                 try {
                     clientConn.write(5, TimeUnit.SECONDS);
                     fail();
-                } catch (ClosedChannelException e) {
+                } catch (ShmemClosedConnectionException e) {
                     // expected
                 }
 
                 try {
                     clientConn.read(5, TimeUnit.SECONDS);
                     fail();
-                } catch (ClosedChannelException e) {
+                } catch (ShmemClosedConnectionException e) {
                     // expected
                 }
 
@@ -438,7 +445,7 @@ public class ShmemChannelTest {
                         serverReadWaitLatch.countDown();
                         serverConn.read(2, TimeUnit.SECONDS).close();
                         fail();
-                    } catch (ClosedChannelException e) {
+                    } catch (ShmemClosedConnectionException e) {
                         // expected
                     }
                 });
@@ -450,7 +457,7 @@ public class ShmemChannelTest {
                         clientReadWaitLatch.countDown();
                         clientConn.read(2, TimeUnit.SECONDS).close();
                         fail();
-                    } catch (ClosedChannelException e) {
+                    } catch (ShmemClosedConnectionException e) {
                         // expected
                     }
                 });
@@ -485,7 +492,7 @@ public class ShmemChannelTest {
                         ownerWriteWaitLatch.countDown();
                         serverConn.write(2, TimeUnit.SECONDS).close();
                         fail();
-                    } catch (ClosedChannelException e) {
+                    } catch (ShmemClosedConnectionException e) {
                         // expected
                     }
                 });
@@ -497,7 +504,7 @@ public class ShmemChannelTest {
                         clientWriteWaitLatch.countDown();
                         clientConn.write(2, TimeUnit.SECONDS).close();
                         fail();
-                    } catch (ClosedChannelException e) {
+                    } catch (ShmemClosedConnectionException e) {
                         // expected
                     }
                 });
@@ -582,7 +589,7 @@ public class ShmemChannelTest {
                         readWaitLatch.countDown();
                         serverConn.read(2, TimeUnit.SECONDS);
                         fail();
-                    } catch (ClosedChannelException | ShmemDestroyedException e) {
+                    } catch (ShmemClosedConnectionException | ShmemDestroyedException e) {
 //                        log.debug("Destroyed");
                         // expected
                     }
@@ -618,7 +625,7 @@ public class ShmemChannelTest {
                         writeWaitLatch.countDown();
                         serverConn.write(2, TimeUnit.SECONDS);
                         fail();
-                    } catch (ClosedChannelException | ShmemDestroyedException e) {
+                    } catch (ShmemClosedConnectionException | ShmemDestroyedException e) {
                         // expected
                     }
                 });
@@ -633,6 +640,61 @@ public class ShmemChannelTest {
                 serverChannel.getShmem().close();
 
                 this.awaitSecs(writeFuture, 5);
+            }));
+        });
+    }
+
+    @Test
+    public void readFailureIfClientProcessDies() throws Exception {
+        this.createChannels((serverChannel, clientChannel) -> {
+            this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
+
+                // mimic the client crashing by saying its process is no longer "alive"
+                long clientPid = this.clientProcessProvider.getCurrentPid();
+                doReturn(false).when(this.serverProcessProvider).isAlive(eq(clientPid));
+
+                try {
+                    serverConn.read(2, TimeUnit.SECONDS);
+                    fail();
+                } catch (ShmemClosedConnectionException e) {
+                    // expected
+                    assertThat(e.getCause(), instanceOf(ShmemProcessDiedException.class));
+                }
+
+                assertThat(serverChannel.isClosed(), is(false));
+                assertThat(clientChannel.isClosed(), is(false));
+                assertThat(serverConn.isClosed(), is(true));
+                assertThat(clientConn.isClosed(), is(true));
+            }));
+        });
+    }
+
+    @Test
+    public void writeFailureIfClientProcessDies() throws Exception {
+        this.createChannels((serverChannel, clientChannel) -> {
+            this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
+
+                // write something (so that the next write blocks)
+                try (DefaultShmemChannel.Write write = serverConn.write(1, TimeUnit.SECONDS)) {
+                    write.getBuffer().putInt(1);
+                }
+
+                // mimic the client crashing by saying its process is no longer "alive"
+                long clientPid = this.clientProcessProvider.getCurrentPid();
+                doReturn(false).when(this.serverProcessProvider).isAlive(eq(clientPid));
+
+                try {
+                    serverConn.write(2, TimeUnit.SECONDS);
+                    fail();
+                } catch (ShmemClosedConnectionException e) {
+                    // expected
+                    assertThat(e.getCause(), instanceOf(ShmemProcessDiedException.class));
+                }
+
+                assertThat(serverChannel.isClosed(), is(false));
+                assertThat(clientChannel.isClosed(), is(false));
+                assertThat(serverConn.isClosed(), is(true));
+                assertThat(clientConn.isClosed(), is(true));
             }));
         });
     }

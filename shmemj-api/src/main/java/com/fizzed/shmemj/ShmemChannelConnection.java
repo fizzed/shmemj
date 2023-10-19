@@ -36,6 +36,10 @@ public class ShmemChannelConnection implements AutoCloseable {
         return this.channel.read(timeout, unit);
     }
 
+    public boolean isClosed() {
+        return this.channel.isConnectionClosed();
+    }
+
     @Override
     public void close() throws Exception {
         this.channel.closeConnection(false);

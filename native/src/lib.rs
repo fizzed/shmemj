@@ -39,7 +39,7 @@ fn handle_shmem_error<T>(env: &mut JNIEnv, result: &Result<T,ShmemError>) -> boo
 //
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_ShmemFactory_nativeCreate<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, size: jlong, flink: JString<'local>) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_ShmemFactory_nativeCreate<'local>(mut env: JNIEnv<'local>, _target: JObject<'local>, size: jlong, flink: JString<'local>) -> jobject {
 
     let mut shmem_conf = ShmemConf::new()
         .size(size as usize);
@@ -61,7 +61,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_ShmemFactory_nativeCreate<'local>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_fizzed_shmemj_ShmemFactory_nativeOpen<'local>(mut env: JNIEnv<'local>, target: JObject<'local>, flink: JString<'local>, os_id: JString<'local>) -> jobject {
+pub extern "system" fn Java_com_fizzed_shmemj_ShmemFactory_nativeOpen<'local>(mut env: JNIEnv<'local>, _target: JObject<'local>, flink: JString<'local>, os_id: JString<'local>) -> jobject {
 
     let mut shmem_conf = ShmemConf::new();
 
@@ -249,7 +249,7 @@ pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeNewByteBuffer<'local>(
     }
 }
 
-fn create_event_object(env: &mut JNIEnv, event_boxed: Box<dyn EventImpl>, event_size: usize) -> jobject {
+fn create_event_object(env: &mut JNIEnv, event_boxed: Box<dyn EventImpl>, event_size: usize, spin_lock: jboolean) -> jobject {
     // since its already boxed, we'll leak it out, then make it manually dropped
     let event = Box::leak(event_boxed);
 
@@ -277,6 +277,9 @@ fn create_event_object(env: &mut JNIEnv, event_boxed: Box<dyn EventImpl>, event_
     env.set_field(&shcond_obj, "size", "J", JValue::Long(event_size as jlong))
         .unwrap();
 
+    env.set_field(&shcond_obj, "spinLock", "Z", JValue::Bool(spin_lock))
+        .unwrap();
+
     return shcond_obj.into_raw();
 }
 
@@ -301,10 +304,10 @@ pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeNewCondition<'local>(m
 
         if spin_lock_r {
             let (event_boxed, event_size) = BusyEvent::new(mem_ptr, auto_reset_r).unwrap();
-            return create_event_object(&mut env, event_boxed, event_size);
+            return create_event_object(&mut env, event_boxed, event_size, spin_lock);
         } else {
             let (event_boxed, event_size) = Event::new(mem_ptr, auto_reset_r).unwrap();
-            return create_event_object(&mut env, event_boxed, event_size);
+            return create_event_object(&mut env, event_boxed, event_size, spin_lock);
         }
     }
 }
@@ -330,15 +333,11 @@ pub extern "system" fn Java_com_fizzed_shmemj_Shmem_nativeExistingCondition<'loc
 
         if spin_lock_r {
             let (event_boxed, event_size) = BusyEvent::from_existing(mem_ptr).unwrap();
-            return create_event_object(&mut env, event_boxed, event_size);
+            return create_event_object(&mut env, event_boxed, event_size, spin_lock);
         } else {
             let (event_boxed, event_size) = Event::from_existing(mem_ptr).unwrap();
-            return create_event_object(&mut env, event_boxed, event_size);
+            return create_event_object(&mut env, event_boxed, event_size, spin_lock);
         }
-
-        let (event_boxed, event_size) = BusyEvent::from_existing(mem_ptr).unwrap();
-
-        return create_event_object(&mut env, event_boxed, event_size);
     }
 }
 

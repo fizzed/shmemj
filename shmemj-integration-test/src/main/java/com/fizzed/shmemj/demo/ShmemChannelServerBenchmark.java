@@ -16,22 +16,17 @@ public class ShmemChannelServerBenchmark {
 
     static public void main(String[] args) throws Exception {
         final Path address = temporaryFile("shmem_channel_benchmark.sock");
-
         final boolean debug = false;
-        boolean shutdown = false;
 
         try (final ShmemServerChannel channel = new ShmemChannelFactory().setSize(8192L).setAddress(address).setSpinLocks(true).createServerChannel()) {
-            while (!shutdown) {
-                try (final ShmemChannel c = channel) {
-                    // we'll connect ourselves, then wait for the client
-                    log.info("Waiting for client process to connect...");
+            for (;;) {
+                log.info("Listening on channel {} (as pid {})", channel.getAddress(), ProcessProvider.DEFAULT.getCurrentPid());
 
-                    final ShmemChannelConnection conn = channel.accept(120, TimeUnit.SECONDS);
+                try (final ShmemChannelConnection conn = channel.accept(120, TimeUnit.SECONDS)) {
 
-                    log.info("Connected with process {}", conn.getRemotePid());
+                    log.info("Connected with process pid={}", conn.getRemotePid());
 
-                    int count = 0;
-                    while (!shutdown) {
+                    for (int count = 0; ; count++) {
                         long iteration = 0;
 
                         if (debug) log.info("readBegin(): waiting for request #{}", count);
@@ -60,13 +55,13 @@ public class ShmemChannelServerBenchmark {
                             if (debug)
                                 log.info("writeEnd(): sent response #{} ({} bytes)", iteration, writeBuffer.position());
                         }
-
-                        count++;
                     }
-                } catch (ClosedChannelException e) {
-                    log.info("Channel closed");
+                } catch (ShmemClosedConnectionException e) {
+                    log.info("Closed connection {}", channel.getAddress());
                 }
             }
+        } catch (ShmemDestroyedException e) {
+            log.info("Destroyed channel {}", address);
         }
 
         log.info("Done, shmem will have been deleted");

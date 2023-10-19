@@ -16,9 +16,9 @@ public class ShmemChannelServerDemo {
     static public void main(String[] args) throws Exception {
         final Path address = temporaryFile("shmem_channel_demo.sock");
 
-        try (final ShmemServerChannel channel = new ShmemChannelFactory().setSize(4096L).setAddress(address).createServerChannel()) {
+        try (final ShmemServerChannel channel = new ShmemChannelFactory().setSize(4096L).setAddress(address).setSpinLocks(true).createServerChannel()) {
             for (;;) {
-                log.info("Listening on channel {}", channel.getAddress());
+                log.info("Listening on channel {} (as pid {})", channel.getAddress(), ProcessProvider.DEFAULT.getCurrentPid());
 
                 try (final ShmemChannelConnection conn = channel.accept(120, TimeUnit.SECONDS)) {
 
@@ -39,7 +39,7 @@ public class ShmemChannelServerDemo {
                             log.debug("Sending: {}", resp);
                         }
                     }
-                } catch (ClosedChannelException e) {
+                } catch (ShmemClosedConnectionException e) {
                     log.info("Closed connection {}", channel.getAddress());
                 }
             }
