@@ -16,6 +16,10 @@ public class ProcessProviderDemo {
     static public void main(String[] args) throws Exception {
         ProcessProvider processProvider = new DefaultProcessProvider();
 
+        // warm up first
+        processProvider.getCurrentPid();
+        processProvider.isAlive(1);
+
         StopWatch pidTimer = StopWatch.timeMillis();
         long pid = processProvider.getCurrentPid();
         log.debug("Our pid {} (in {})", pid, pidTimer);
