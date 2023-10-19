@@ -66,19 +66,14 @@ public class ShmemCondition implements Closeable {
                 return true;
             }
 
-            if (awaitCount < 20) {  // roughly up to < 1 sec
-                // we will quickly try awaitAgain
-            } else if (awaitCount < 80) {   // roughly up to 3 secs
-                // go to sleep for a short duration
+            if (awaitCount < 20) {          // 20 * 10 mills = 200 millis
+                // we will quickly try to await again
+            } else if (awaitCount < 80) {   // 60 * (10 + 5 millis) = 900 millis
+                // go to sleep for a very short duration, should be interruptible
                 Thread.sleep(5L);
             } else {
                 // go to sleep for a longer duration
                 Thread.sleep(100L);
-            }
-
-            // were we interrupted?
-            if (Thread.currentThread().isInterrupted()) {
-                throw new InterruptedException();
             }
 
             awaitCount++;

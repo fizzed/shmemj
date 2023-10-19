@@ -156,16 +156,14 @@ public class ShmemConditionTest {
         try {
             final CountDownLatch interruptedLatch = new CountDownLatch(1);
             // fire up a thread that will wait on the condition
-            final Thread t = new Thread() {
-                public void run() {
-                    try {
-                        condition.await(5, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        // this is what we expect, we'll return from here too
-                        interruptedLatch.countDown();
-                    }
+            final Thread t = new Thread(() -> {
+                try {
+                    condition.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    // this is what we expect, we'll return from here too
+                    interruptedLatch.countDown();
                 }
-            };
+            });
             t.start();
 
             // interrupt thread, countdown latch should be invoked
@@ -192,16 +190,14 @@ public class ShmemConditionTest {
         try {
             final CountDownLatch interruptedLatch = new CountDownLatch(1);
             // fire up a thread that will wait on the condition
-            final Thread t = new Thread() {
-                public void run() {
-                    try {
-                        condition.await(5, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        // this is what we expect, we'll return from here too
-                        interruptedLatch.countDown();
-                    }
+            final Thread t = new Thread(() -> {
+                try {
+                    condition.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    // this is what we expect, we'll return from here too
+                    interruptedLatch.countDown();
                 }
-            };
+            });
             t.start();
 
             // interrupt thread, countdown latch should be invoked
