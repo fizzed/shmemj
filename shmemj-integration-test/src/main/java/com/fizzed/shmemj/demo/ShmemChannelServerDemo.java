@@ -27,13 +27,13 @@ public class ShmemChannelServerDemo {
                     for (;;) {
                         // recv request
                         String req;
-                        try (DefaultShmemChannel.Read read = conn.read(5, TimeUnit.SECONDS)) {
+                        try (ShmemChannel.Read read = conn.read(5, TimeUnit.SECONDS)) {
                             req = getStringUTF8(read.getBuffer());
                             log.debug("Received: {}", req);
                         }
 
                         // send response
-                        try (DefaultShmemChannel.Write write = conn.write(5, TimeUnit.SECONDS)) {
+                        try (ShmemChannel.Write write = conn.write(5, TimeUnit.SECONDS)) {
                             String resp = req + " World!";
                             putStringUTF8(write.getBuffer(), resp);
                             log.debug("Sending: {}", resp);

@@ -91,18 +91,18 @@ public class ShmemCondition implements Closeable {
             if (awaitCount < 10) {          // 10 * 10 mills = 100 millis
                 // we will quickly try to await again
             } else if (awaitCount < 80) {   // 60 * (10 + 25 millis) = 2100 millis
-                if (awaitCount == 20) { System.out.println("Spin lock short duration sleep   @ " + System.currentTimeMillis()); }
+//                if (awaitCount == 20) { System.out.println("Spin lock short duration sleep   @ " + System.currentTimeMillis()); }
                 // go to sleep for a very short duration, should be interruptible
                 Thread.sleep(25L);
                 // switch to a very short CAS cycle now
                 nativeAwaitMillis = 1L;
             } else if (awaitCount < 160) {   // 60 * (10 + 100 millis) = 2100 millis
-                if (awaitCount == 80) { System.out.println("Spin lock medium duration sleep  @ " + System.currentTimeMillis()); }
+//                if (awaitCount == 80) { System.out.println("Spin lock medium duration sleep  @ " + System.currentTimeMillis()); }
                 // go to sleep for a longer duration (this represents main latency)
                 Thread.sleep(50L);
                 triggerConsumer = !triggerConsumer && waitingConsumer != null;
             } else {
-                if (awaitCount == 160) { System.out.println("Spin lock long duration sleep   @ " + System.currentTimeMillis()); }
+//                if (awaitCount == 160) { System.out.println("Spin lock long duration sleep   @ " + System.currentTimeMillis()); }
                 // go to sleep for a longer duration (this represents main latency)
                 Thread.sleep(200L);
             }
@@ -138,7 +138,7 @@ public class ShmemCondition implements Closeable {
                 throw new InterruptedException();
             }
 
-            if (awaitCount == 0) { System.out.println("Standard condition long duration sleep  @ " + System.currentTimeMillis()); }
+//            if (awaitCount == 0) { System.out.println("Standard condition long duration sleep  @ " + System.currentTimeMillis()); }
 
             elapsedMillis = System.currentTimeMillis() - startTimeMillis;
 

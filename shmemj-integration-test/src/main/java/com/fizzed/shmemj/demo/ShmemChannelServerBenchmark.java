@@ -31,7 +31,7 @@ public class ShmemChannelServerBenchmark {
 
                         if (debug) log.info("readBegin(): waiting for request #{}", count);
 
-                        try (final DefaultShmemChannel.Read read = conn.read(120, TimeUnit.SECONDS)) {
+                        try (final ShmemChannel.Read read = conn.read(120, TimeUnit.SECONDS)) {
                             final ByteBuffer readBuffer = read.getBuffer();
 
                             if (debug)
@@ -47,7 +47,7 @@ public class ShmemChannelServerBenchmark {
                         // we want to write to the channel!
                         if (debug) log.info("beginWrite(): want to send response #{}", iteration);
 
-                        try (final DefaultShmemChannel.Write write = conn.write(120, TimeUnit.SECONDS)) {
+                        try (final ShmemChannel.Write write = conn.write(120, TimeUnit.SECONDS)) {
                             final ByteBuffer writeBuffer = write.getBuffer();
 
                             writeBuffer.putLong(iteration);

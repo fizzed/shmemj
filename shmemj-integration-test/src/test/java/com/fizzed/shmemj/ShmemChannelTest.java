@@ -675,7 +675,7 @@ public class ShmemChannelTest {
             this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
 
                 // write something (so that the next write blocks)
-                try (DefaultShmemChannel.Write write = serverConn.write(1, TimeUnit.SECONDS)) {
+                try (ShmemChannel.Write write = serverConn.write(1, TimeUnit.SECONDS)) {
                     write.getBuffer().putInt(1);
                 }
 

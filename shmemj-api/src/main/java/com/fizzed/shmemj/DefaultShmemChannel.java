@@ -92,7 +92,7 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         }
     }
 
-    public class Read extends AbstractOp {
+    public class Read extends AbstractOp implements ShmemChannel.Read {
 
         public Read(ByteBuffer buffer) {
             super(buffer);
@@ -104,7 +104,7 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         }
     }
 
-    public class Write extends AbstractOp {
+    public class Write extends AbstractOp implements ShmemChannel.Write {
 
         public Write(ByteBuffer buffer) {
             super(buffer);

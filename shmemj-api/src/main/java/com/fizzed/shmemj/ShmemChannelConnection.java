@@ -28,11 +28,11 @@ public class ShmemChannelConnection implements AutoCloseable {
         }
     }
 
-    public DefaultShmemChannel.Write write(long timeout, TimeUnit unit) throws IOException, TimeoutException, InterruptedException {
+    public ShmemChannel.Write write(long timeout, TimeUnit unit) throws IOException, TimeoutException, InterruptedException {
         return this.channel.write(timeout, unit);
     }
 
-    public DefaultShmemChannel.Read read(long timeout, TimeUnit unit) throws IOException, TimeoutException, InterruptedException {
+    public ShmemChannel.Read read(long timeout, TimeUnit unit) throws IOException, TimeoutException, InterruptedException {
         return this.channel.read(timeout, unit);
     }
 

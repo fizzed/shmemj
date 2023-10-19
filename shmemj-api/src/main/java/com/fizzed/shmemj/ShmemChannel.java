@@ -1,6 +1,21 @@
 package com.fizzed.shmemj;
 
+import java.io.Closeable;
+import java.nio.ByteBuffer;
+
 public interface ShmemChannel extends AutoCloseable {
+
+    interface Read extends Closeable {
+
+        ByteBuffer getBuffer();
+
+    }
+
+    interface Write extends Closeable {
+
+        ByteBuffer getBuffer();
+
+    }
 
     Shmem getShmem();
 

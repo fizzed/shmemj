@@ -1,9 +1,6 @@
 package com.fizzed.shmemj.demo;
 
-import com.fizzed.shmemj.ShmemChannelConnection;
-import com.fizzed.shmemj.ShmemChannelFactory;
-import com.fizzed.shmemj.DefaultShmemChannel;
-import com.fizzed.shmemj.ShmemClientChannel;
+import com.fizzed.shmemj.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,14 +24,14 @@ public class ShmemChannelClientDemo {
                 log.info("Connected with process pid={}", conn.getRemotePid());
 
                 // send request
-                try (DefaultShmemChannel.Write write = conn.write(5, TimeUnit.SECONDS)) {
+                try (ShmemChannel.Write write = conn.write(5, TimeUnit.SECONDS)) {
                     String s = "Hello";
                     putStringUTF8(write.getBuffer(), s);
                     log.debug("Sending: {}", s);
                 }
 
                 // recv response
-                try (DefaultShmemChannel.Read read = conn.read(5, TimeUnit.SECONDS)) {
+                try (ShmemChannel.Read read = conn.read(5, TimeUnit.SECONDS)) {
                     String s = getStringUTF8(read.getBuffer());
                     log.debug("Received: {}", s);
                 }
