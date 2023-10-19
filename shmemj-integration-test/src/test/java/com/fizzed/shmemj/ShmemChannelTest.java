@@ -583,7 +583,7 @@ public class ShmemChannelTest {
                         serverConn.read(2, TimeUnit.SECONDS);
                         fail();
                     } catch (ClosedChannelException | ShmemDestroyedException e) {
-                        log.debug("Destroyed");
+//                        log.debug("Destroyed");
                         // expected
                     }
                 });
@@ -594,12 +594,12 @@ public class ShmemChannelTest {
                 Thread.sleep(500L);
 
                 // server closes (should unblock itself & client)
-                log.debug("Closing clientShmem");
+//                log.debug("Closing clientShmem");
                 clientChannel.getShmem().close();
-                log.debug("Closing serverShmem");
+//                log.debug("Closing serverShmem");
                 serverChannel.getShmem().close();
 
-                log.debug("Awaiting now...");
+//                log.debug("Awaiting now...");
                 this.awaitSecs(readFuture, 5);
             });
         });
