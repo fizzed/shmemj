@@ -13,12 +13,14 @@ import java.util.function.Consumer;
 public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChannel {
 
     // probably best to keep control buffer as divisible by 8
-    static private final int CONTROL_BUFFER_SIZE = 24;
+    static private final int CONTROL_BUFFER_SIZE = 40;
     static private final int CONTROL_MAGIC_POS = 0;
     static private final int CONTROL_VERSION_POS = 1;
     static private final int CONTROL_SERVER_PID_POS = 2;
     static private final int CONTROL_CLIENT_PID_POS = 10;
     static private final int CONTROL_SPIN_LOCK_POS = 18;
+    static private final int CONTROL_SERVER_BUFFER_SIZE_POS = 19;
+    static private final int CONTROL_CLIENT_BUFFER_SIZE_POS = 27;
 
     static private final long NOT_CONNECTED_PID = 0L;
     static private final byte MAGIC = (byte)42;         // random value to detect this is most likely a shmem channel
@@ -77,6 +79,23 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         public void setSpinLocks(boolean spinLocks) {
             this.buffer.put(CONTROL_SPIN_LOCK_POS, spinLocks ? SPIN_LOCKS : THREAD_LOCKS);
         }
+
+        public long getServerBufferSize() {
+            return this.buffer.getLong(CONTROL_SERVER_BUFFER_SIZE_POS);
+        }
+
+        public void setServerBufferSize(long pid) {
+            this.buffer.putLong(CONTROL_SERVER_BUFFER_SIZE_POS, pid);
+        }
+
+        public long getClientBufferSize() {
+            return this.buffer.getLong(CONTROL_CLIENT_BUFFER_SIZE_POS);
+        }
+
+        public void setClientBufferSize(long pid) {
+            this.buffer.putLong(CONTROL_CLIENT_BUFFER_SIZE_POS, pid);
+        }
+
     }
 
     abstract protected static class AbstractOp implements Closeable {
@@ -518,6 +537,8 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         final ShmemCondition serverReadCondition;
         final ShmemCondition clientWriteCondition;
         final ShmemCondition clientReadCondition;
+        final long serverBufferSize;
+        final long clientBufferSize;
 
         if (shmem.isOwner()) {
             final boolean _spinLocks = spinLocks != null ? spinLocks : false;
@@ -537,12 +558,19 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
             clientReadCondition = shmem.newCondition(offset, _spinLocks, true);
             offset += clientReadCondition.getSize();
 
+            // buffers takes up the rest of the available space
+            long totalBuffersLen = shmem.getSize() - offset;
+            serverBufferSize = totalBuffersLen / 2;
+            clientBufferSize = totalBuffersLen - serverBufferSize;
+
             // zero out control buffer, set spin lock used
             control.setMagic(MAGIC);
             control.setVersion(VERSION_1_0);
             control.setServerPid(0);
             control.setClientPid(0);
             control.setSpinLocks(_spinLocks);
+            control.setServerBufferSize(serverBufferSize);
+            control.setClientBufferSize(clientBufferSize);
         } else {
             // validate magic and version are what we expect
             if (control.getMagic() != MAGIC) {
@@ -569,17 +597,16 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
 
             clientReadCondition = shmem.existingCondition(offset, _spinLocks);
             offset += clientReadCondition.getSize();
+
+            serverBufferSize = control.getServerBufferSize();
+            clientBufferSize = control.getClientBufferSize();
         }
 
-        // buffers takes up the rest of the available space
-        long totalBuffersLen = shmem.getSize() - offset;
-        long ownerBufferLen = totalBuffersLen / 2;
-        long clientBufferLen = totalBuffersLen - ownerBufferLen;
+        final ByteBuffer serverBuffer = shmem.newByteBuffer(offset, serverBufferSize);
+        final ByteBuffer clientBuffer = shmem.newByteBuffer(offset+serverBufferSize, clientBufferSize);
 
-        final ByteBuffer serverBuffer = shmem.newByteBuffer(offset, ownerBufferLen);
-        final ByteBuffer clientBuffer = shmem.newByteBuffer(offset+ownerBufferLen, clientBufferLen);
-
-        DefaultShmemChannel channel = new DefaultShmemChannel(shmem, processProvider, control, clientConnectCondition, serverWriteCondition, serverReadCondition, clientWriteCondition, clientReadCondition, serverBuffer, clientBuffer);
+        DefaultShmemChannel channel = new DefaultShmemChannel(shmem, processProvider, control, clientConnectCondition,
+            serverWriteCondition, serverReadCondition, clientWriteCondition, clientReadCondition, serverBuffer, clientBuffer);
 
         shmem.registerResource(channel);
 
