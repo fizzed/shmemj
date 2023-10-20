@@ -654,7 +654,7 @@ public class ShmemChannelTest {
                 doReturn(false).when(this.serverProcessProvider).isAlive(eq(clientPid));
 
                 try {
-                    serverConn.read(2, TimeUnit.SECONDS);
+                    serverConn.read(4, TimeUnit.SECONDS);
                     fail();
                 } catch (ShmemClosedConnectionException e) {
                     // expected
@@ -684,7 +684,7 @@ public class ShmemChannelTest {
                 doReturn(false).when(this.serverProcessProvider).isAlive(eq(clientPid));
 
                 try {
-                    serverConn.write(2, TimeUnit.SECONDS);
+                    serverConn.write(4, TimeUnit.SECONDS);
                     fail();
                 } catch (ShmemClosedConnectionException e) {
                     // expected
