@@ -19,6 +19,13 @@ import static java.util.Arrays.asList;
 public class blaze {
     final private Logger log = Contexts.logger();
 
+    public void clean_natives() throws Exception {
+        final Path rustProjectDir = withBaseDir("../native");
+        exec("cargo", "clean")
+            .workingDir(rustProjectDir)
+            .run();
+    }
+
     public void build_natives() throws Exception {
         String os_str = Contexts.config().value("build-os").orNull();
         String arch_str = Contexts.config().value("build-arch").orNull();
