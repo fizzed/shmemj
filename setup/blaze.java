@@ -193,9 +193,11 @@ public class blaze {
             .workingDir(rustProjectDir)
             .run();
 
-        for (Path f : Globber.globber(rustArtifactDir, "*.so").filesOnly().scan()) {
-            log.info("Copying {} -> {}", f, javaOutputDir);
-            Files.copy(f, javaOutputDir.resolve(f.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+        for (String ext : asList(".so", ".dll", ".dylib")) {
+            for (Path f : Globber.globber(rustArtifactDir, "*"+ext).filesOnly().scan()) {
+                log.info("Copying {} -> {}", f, javaOutputDir);
+                Files.copy(f, javaOutputDir.resolve(f.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+            }
         }
 
         /*$input_dir = "$project_dir\native\target\$target\release"
