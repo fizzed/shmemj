@@ -706,7 +706,11 @@ public class ShmemChannelTest {
         this.createChannels(5000, true, (serverChannel, clientChannel) -> {
             this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
                 /*log.debug("server shmem size: {}", serverChannel.getShmem().getSize());
-                log.debug("client shmem size: {}", clientChannel.getShmem().getSize());*/
+                log.debug("client shmem size: {}", clientChannel.getShmem().getSize());
+                log.debug("server write buffer size: {}", serverChannel.getWriteBufferSize());
+                log.debug("server read buffer size: {}", serverChannel.getReadBufferSize());
+                log.debug("client write buffer size: {}", clientChannel.getWriteBufferSize());
+                log.debug("client read buffer size: {}", clientChannel.getReadBufferSize());*/
                 assertThat(serverChannel.getWriteBufferSize(), is(clientChannel.getReadBufferSize()));
                 assertThat(serverChannel.getReadBufferSize(), is(clientChannel.getWriteBufferSize()));
             }));

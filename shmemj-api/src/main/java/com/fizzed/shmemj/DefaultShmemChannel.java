@@ -569,6 +569,9 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
             control.setServerPid(0);
             control.setClientPid(0);
             control.setSpinLocks(_spinLocks);
+            // important: on windows and mac, the operating system will round up on shmem, but only tell the owner
+            // the original size requested, while the non-owner sees the full shmem, causing calculation issues if we're
+            // dividing by 2 -- so we will include the length of the buffer as part of the control
             control.setServerBufferSize(serverBufferSize);
             control.setClientBufferSize(clientBufferSize);
         } else {
