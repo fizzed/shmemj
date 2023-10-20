@@ -24,10 +24,12 @@
     <modules>
         <module>shmemj-api</module>
         <module>shmemj-linux-x64</module>
-        <module>shmemj-macos-arm64</module>
+        <module>shmemj-linux-arm64</module>
         <module>shmemj-macos-x64</module>
+        <module>shmemj-macos-arm64</module>
         <module>shmemj-windows-x64</module>
         <module>shmemj-windows-x32</module>
+        <module>shmemj-windows-arm64</module>
         <module>shmemj-bom</module>
         <module>shmemj-all-natives</module>
         <module>shmemj-integration-tests</module>
