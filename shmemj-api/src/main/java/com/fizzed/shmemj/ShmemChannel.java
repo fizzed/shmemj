@@ -29,6 +29,10 @@ public interface ShmemChannel extends AutoCloseable {
 
     long getClientPid();
 
+    long getWriteBufferSize();
+
+    long getReadBufferSize();
+
     boolean isClosed();
 
     @Override

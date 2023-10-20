@@ -699,4 +699,16 @@ public class ShmemChannelTest {
         });
     }
 
+    @Test
+    public void writeAndReadBufferSizes() throws Exception {
+        // IMPORTANT: macos will not honor the 5K and round up to the nearest block size on the SHMEM that the remote
+        // process uses.  This will throw off where the "read" buffer starts between processes
+        this.createChannels(5000, true, (serverChannel, clientChannel) -> {
+            this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
+                assertThat(serverChannel.getWriteBufferSize(), is(clientChannel.getReadBufferSize()));
+                assertThat(serverChannel.getReadBufferSize(), is(clientChannel.getWriteBufferSize()));
+            }));
+        });
+    }
+
 }

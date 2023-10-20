@@ -194,6 +194,24 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
         return this.control.isSpinLocks();
     }
 
+    @Override
+    public long getWriteBufferSize() {
+        if (this.server) {
+            return this.serverBuffer.capacity();
+        } else {
+            return this.clientBuffer.capacity();
+        }
+    }
+
+    @Override
+    public long getReadBufferSize() {
+        if (this.server) {
+            return this.clientBuffer.capacity();
+        } else {
+            return this.serverBuffer.capacity();
+        }
+    }
+
     public ShmemChannelConnection accept(long timeout, TimeUnit unit) throws IOException, InterruptedException, TimeoutException {
         this.checkShmem(true);
 

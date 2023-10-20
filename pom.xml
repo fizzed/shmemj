@@ -30,7 +30,7 @@
         <module>shmemj-windows-x32</module>
         <module>shmemj-bom</module>
         <module>shmemj-all-natives</module>
-        <module>shmemj-integration-test</module>
+        <module>shmemj-integration-tests</module>
     </modules>
 
     <dependencyManagement>
