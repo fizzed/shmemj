@@ -26,11 +26,12 @@ public class blaze {
     final private Logger log = Contexts.logger();
 
     private final List<Target> targets = asList(
-        /*// Linux arm64 (ubuntu 18.04, glibc 2.27+)
+        // Linux x64 (ubuntu 16.04, glibc 2.?)
         new Target("linux", "x64")
-            .setTags("build")
-            .setContainerImage("fizzed/buildx:amd64-ubuntu18-jdk11-cross-build"),
+            .setTags("build", "test")
+            .setContainerImage("fizzed/buildx:amd64-ubuntu16-jdk11-cross-build"),
 
+        /*
         // Linux arm64 (ubuntu 18.04, glibc 2.27+)
         new Target("linux", "arm64")
             .setTags("build")
@@ -67,16 +68,18 @@ public class blaze {
             .setTags("build", "test")
             .setHost("bmh-build-x64-macos1013-1"),
 
+        // Windows x64 (win7+)
+        new Target("windows", "x64")
+            .setTags("build", "test")
+            .setHost("bmh-build-x64-win11-1"),
+
         /*
         // MacOS arm64 (12+)
         new Target("macos", "arm64")
             .setTags("build", "test")
             .setHost("bmh-build-arm64-macos12-1"),
 
-        // Windows x64 (win7+)
-        new Target("windows", "x64")
-            .setTags("build", "test")
-            .setHost("bmh-build-x64-win11-1"),
+
 
         // Windows arm64 (win10+)
         new Target("windows", "arm64")
@@ -87,10 +90,7 @@ public class blaze {
         // test-only containers
         //
 
-        /*new Target("linux", "x64-test")
-            .setTags("test")
-            .setContainerImage("fizzed/buildx:amd64-ubuntu18-jdk11"),
-
+        /*
         new Target("linux", "arm64-test")
             .setTags("test")
             //.setHost("bmh-build-arm64-ubuntu22-1")
@@ -122,7 +122,7 @@ public class blaze {
             .setContainerImage("fizzed/buildx:arm64v8-alpine3.11-jdk11"),*/
 
         new Target("windows", "x64-test", "win10")
-            .setTags("test")
+            .setTags("build", "test")
             .setHost("bmh-build-x64-win10-1"),
 
         new Target("windows", "x64-test", "win7")
@@ -253,21 +253,29 @@ public class blaze {
             });*/
     }
 
-    public void build_native_libs2() throws Exception {
+    public void batch_build_native_libs() throws Exception {
         new Buildx(targets)
             .setTags("build")
             .execute((target, project) -> {
-                String buildScript = "setup/build-native-lib-linux-action.sh";
+                String buildScript = "setup/blaze-action.sh";
+                if (target.getOs().equals("windows")) {
+                    buildScript = "setup/blaze-action.bat";
+                }
+
+                // i know its nuts but this will invoke a task within this file
+                project.action(buildScript, "build_native_libs", "--build-os", target.getOs(), "--build-arch", target.getArch()).run();
+
+                /*String buildScript = "setup/build-native-lib-linux-action.sh";
                 if (target.getOs().equals("macos")) {
                     buildScript = "setup/build-native-lib-macos-action.sh";
                 } else if (target.getOs().equals("windows")) {
                     buildScript = "setup/build-native-lib-windows-action.bat";
                 }
 
-                project.action(buildScript, target.getOs(), target.getArch()).run();
+                project.action(buildScript, target.getOs(), target.getArch()).run();*/
 
                 // we know that the only modified file will be in the artifact dir
-                final String artifactRelPath = "tkrzw-" + target.getOsArch() + "/src/main/resources/jne/" + target.getOs() + "/" + target.getArch() + "/";
+                final String artifactRelPath = "shmemj-" + target.getOsArch() + "/src/main/resources/jne/" + target.getOs() + "/" + target.getArch() + "/";
                 project.rsync(artifactRelPath, artifactRelPath).run();
             });
     }

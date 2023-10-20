@@ -5,9 +5,10 @@ FROM ${FROM_IMAGE}
 ARG USERID
 ARG USERNAME
 
-# Download zlib and bzip2 source packages
-RUN wget -P /opt https://zlib.net/zlib-1.2.13.tar.gz
-RUN wget -P /opt https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz
+# Install rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > install-rust.sh
+RUN chmod +x ./install-rust.sh
+RUN ./install-rust.sh -y
 
 RUN groupadd -g ${USERID} ${USERNAME}
 RUN useradd -m -l -u ${USERID} -g ${USERNAME} ${USERNAME}

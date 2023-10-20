@@ -1,4 +1,4 @@
-#!/bin/sh -lex
+#!/bin/sh -le
 
 BASEDIR=$(dirname "$0")
 cd "$BASEDIR/.." || exit 1
@@ -12,7 +12,8 @@ CONTAINER_NAME="$2"
 BUILDOS=$3
 BUILDARCH=$4
 
-DOCKERFILE="setup/Dockerfile.linux-cross-build"
+DOCKERFILE="setup/Dockerfile.linux"
+
 if [ ! -z "$(echo $BUILDARCH | grep "\-test")" ]; then
   DOCKERFILE="setup/Dockerfile.linux"
   if [ "$BUILDOS" = "linux_musl" ]; then

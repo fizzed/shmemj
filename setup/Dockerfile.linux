@@ -5,7 +5,14 @@ FROM ${FROM_IMAGE}
 ARG USERID
 ARG USERNAME
 
-RUN apt -y install zlib1g bzip2
+# Install rust
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH=/usr/local/cargo/bin:$PATH
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > install-rust.sh
+RUN chmod +x ./install-rust.sh
+RUN ./install-rust.sh -y
+RUN chmod -R 777 /usr/local/cargo
 
 RUN groupadd -g ${USERID} ${USERNAME}
 RUN useradd -m -l -u ${USERID} -g ${USERNAME} ${USERNAME}
