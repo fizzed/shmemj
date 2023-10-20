@@ -57,11 +57,11 @@ public class ShmemChannelServerBenchmark {
                         }
                     }
                 } catch (ShmemClosedConnectionException e) {
-                    log.info("Closed connection {}", channel.getAddress());
+                    log.info("Closed connection {}: error={}", channel.getAddress(), e.getMessage());
                 }
             }
         } catch (ShmemDestroyedException e) {
-            log.info("Destroyed channel {}", address);
+            log.info("Destroyed channel {}: error={}", address, e.getMessage());
         }
 
         log.info("Done, shmem will have been deleted");

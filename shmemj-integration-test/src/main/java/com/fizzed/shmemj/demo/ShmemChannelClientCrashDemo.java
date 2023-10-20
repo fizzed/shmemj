@@ -4,19 +4,18 @@ import com.fizzed.shmemj.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.channels.ClosedChannelException;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
 import static com.fizzed.shmemj.demo.DemoHelper.*;
 
-public class ShmemChannelClientDemo {
-    static private final Logger log = LoggerFactory.getLogger(ShmemChannelClientDemo.class);
+public class ShmemChannelClientCrashDemo {
+    static private final Logger log = LoggerFactory.getLogger(ShmemChannelClientCrashDemo.class);
 
     static public void main(String[] args) throws Exception {
         final Path address = temporaryFile("shmem_channel_demo.sock");
 
-        try (final ShmemClientChannel channel = new ShmemChannelFactory().setAddress(address).createClientChannel()) {
+        try (final ShmemClientChannel channel = new ShmemChannelFactory().setAddress(address).setDestroyOnExit(false).createClientChannel()) {
             log.info("Connecting to channel {}", channel.getAddress());
 
             try (final ShmemChannelConnection conn = channel.connect(5, TimeUnit.SECONDS)) {
@@ -30,11 +29,7 @@ public class ShmemChannelClientDemo {
                     log.debug("Sending: {}", s);
                 }
 
-                // recv response
-                try (ShmemChannel.Read read = conn.read(5, TimeUnit.SECONDS)) {
-                    String s = getStringUTF8(read.getBuffer());
-                    log.debug("Received: {}", s);
-                }
+                System.exit(5);
             }
         } catch (ShmemClosedConnectionException e) {
             log.info("Channel closed");

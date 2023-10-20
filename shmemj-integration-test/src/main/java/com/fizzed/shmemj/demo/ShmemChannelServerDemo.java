@@ -40,7 +40,7 @@ public class ShmemChannelServerDemo {
                         }
                     }
                 } catch (ShmemClosedConnectionException e) {
-                    log.info("Closed connection {}", channel.getAddress());
+                    log.info("Closed connection {}: error={}", channel.getAddress(), e.getMessage());
                 }
             }
         } catch (ShmemDestroyedException e) {

@@ -323,7 +323,7 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
                 // only check every 1 sec so we're not doing this too frequently
                 if ((elapsedMillis - lastElaspedMillis) >= 1000L) {
                     if (!DefaultShmemChannel.this.processProvider.isAlive(remotePid)) {
-                        throw new ShmemProcessDiedException("Process " + remotePid + " either crashed or exited w/o properly closing this channel");
+                        throw new ShmemProcessDiedException("Remote process " + remotePid + " either crashed or exited w/o properly closing this channel");
                     }
                     lastElaspedMillis = elapsedMillis;
                 }
@@ -408,7 +408,7 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
 
             if (e instanceof ShmemProcessDiedException) {
                 this.closeConnection(false);
-                throw new ShmemClosedConnectionException(e);
+                throw new ShmemClosedConnectionException(e.getMessage(), e);
             }
 
             throw e;
@@ -458,7 +458,7 @@ public class DefaultShmemChannel implements ShmemServerChannel, ShmemClientChann
 
             if (e instanceof ShmemProcessDiedException) {
                 this.closeConnection(false);
-                throw new ShmemClosedConnectionException(e);
+                throw new ShmemClosedConnectionException(e.getMessage(), e);
             }
 
             throw e;
