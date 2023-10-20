@@ -142,8 +142,8 @@ public class blaze {
     }
 
     public void build_native_libs() throws Exception {
-        String os_str = Contexts.config().value("target_os").orNull();
-        String arch_str = Contexts.config().value("target_arch").orNull();
+        String os_str = Contexts.config().value("build-os").orNull();
+        String arch_str = Contexts.config().value("build-arch").orNull();
 
         OperatingSystem os = PlatformInfo.detectOperatingSystem();
         HardwareArchitecture arch = PlatformInfo.detectHardwareArchitecture();
@@ -159,46 +159,63 @@ public class blaze {
         os_str = os.name().toLowerCase();
         arch_str = arch.name().toLowerCase();
 
-        log.info("Building for operating system: {}", os);
-        log.info("Building for hardware arch: {}", arch);
+        log.info("=================================================");
+        log.info("");
+        log.info("NOTE: you can target a specific os/arch by passing in --build-os <os> or --build-arch <arch>");
+        log.info("on the command line when you run this script.");
+        log.info("");
+        log.info("Building for:");
+        log.info("  operating system: {}", os);
+        log.info("  hardware arch: {}", arch);
 
         // rust target from os-arch
         // https://doc.rust-lang.org/nightly/rustc/platform-support.html
-        String rustTarget = null;
-        switch (os) {
-            case WINDOWS:
-                switch (arch) {
-                    case X64:
-                        rustTarget = "x86_64-pc-windows-msvc";
-                        break;
-                    case X32:
-                        rustTarget = "i686-pc-windows-msvc";
-                        break;
-                }
+        String rustArch = null;
+        switch (arch) {
+            case X64:
+                rustArch = "x86_64";
                 break;
-            case LINUX:
-                switch (arch) {
-                    case X64:
-                        rustTarget = "x86_64-unknown-linux-gnu";
-                        break;
-                    case X32:
-                        rustTarget = "i686-unknown-linux-gnu";
-                        break;
-                }
+            case X32:
+                rustArch = "i686";
+                break;
+            case ARM64:
+                rustArch = "aarch64";
+                break;
+            case RISCV64:
+                rustArch = "riscv64";
                 break;
         }
 
-        if (rustTarget == null) {
-            fail("Unable to map %s %s to a rust target (please add to switch statement)", os, arch);
+        String rustOs = null;
+        switch (os) {
+            case WINDOWS:
+                rustOs = "pc-windows-msvc";
+                break;
+            case LINUX:
+                rustOs = "unknown-linux-gnu";
+                break;
+            case MACOS:
+                rustOs = "apple-darwin";
+                break;
+            case FREEBSD:
+                rustOs = "unknown-freebsd";
+                break;
+            case OPENBSD:
+                rustOs = "unknown-openbsd";
+                break;
         }
+
+        final String rustTarget = rustArch + "-" + rustOs;
 
         final Path rustProjectDir = withBaseDir("../native");
         final Path rustArtifactDir = rustProjectDir.resolve("target/"+rustTarget+"/release");
         final Path javaOutputDir = withBaseDir("../shmemj-"+os_str+"-"+arch_str+"/src/main/resources/jne/"+os_str+"/"+arch_str);
 
-        log.info("rustProjectDir: {}", rustProjectDir);
-        log.info("rustArtifactDir: {}", rustArtifactDir);
-        log.info("javaOutputDir: {}", javaOutputDir);
+        log.info("  rustTarget: {}", rustTarget);
+        log.info("  rustProjectDir: {}", rustProjectDir);
+        log.info("  rustArtifactDir: {}", rustArtifactDir);
+        log.info("  javaOutputDir: {}", javaOutputDir);
+        log.info("=================================================");
 
         log.info("Building native lib...");
         exec("cargo", "build", "--release", "--target="+rustTarget)
