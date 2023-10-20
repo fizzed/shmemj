@@ -12,6 +12,11 @@ CONTAINER_NAME="$2"
 BUILDOS=$3
 BUILDARCH=$4
 
+# https://github.com/cross-rs/cross/tree/main/docker
+# https://kerkour.com/rust-cross-compilation
+# https://www.docker.com/blog/cross-compiling-rust-code-for-multiple-architectures/
+
+
 DOCKERFILE="setup/Dockerfile.linux"
 
 if [ ! -z "$(echo $BUILDARCH | grep "\-test")" ]; then
