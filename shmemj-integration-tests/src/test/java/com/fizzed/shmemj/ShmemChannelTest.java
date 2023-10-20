@@ -711,4 +711,56 @@ public class ShmemChannelTest {
         });
     }
 
+    @Test
+    public void serverWritesClientReads() throws Exception {
+        // IMPORTANT: macos will not honor the 5K and round up to the nearest block size on the SHMEM that the remote
+        // process uses.  This will throw off where the "read" buffer starts between processes
+        this.createChannels(5000, true, (serverChannel, clientChannel) -> {
+            this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
+                // server writes bytes, client reads them and verifies it's what we expect
+                try (ShmemChannel.Write write = serverConn.write(2, TimeUnit.SECONDS)) {
+                    long size = write.getBuffer().capacity();
+                    for (long i = 0; i < size; i++) {
+                        write.getBuffer().put((byte)(i % 127));
+                    }
+                }
+
+                try (ShmemChannel.Read read = clientConn.read(2, TimeUnit.SECONDS)) {
+                    long size = read.getBuffer().capacity();
+                    for (long i = 0; i < size; i++) {
+                        byte b = read.getBuffer().get();
+                        byte expected = (byte)(i % 127);
+                        assertThat(b, is(expected));
+                    }
+                }
+            }));
+        });
+    }
+
+    @Test
+    public void clientWritesServerReads() throws Exception {
+        // IMPORTANT: macos will not honor the 5K and round up to the nearest block size on the SHMEM that the remote
+        // process uses.  This will throw off where the "read" buffer starts between processes
+        this.createChannels(5000, true, (serverChannel, clientChannel) -> {
+            this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
+                // client writes bytes, server reads them and verifies it's what we expect
+                try (ShmemChannel.Write write = clientConn.write(2, TimeUnit.SECONDS)) {
+                    long size = write.getBuffer().capacity();
+                    for (long i = 0; i < size; i++) {
+                        write.getBuffer().put((byte)(i % 127));
+                    }
+                }
+
+                try (ShmemChannel.Read read = serverConn.read(2, TimeUnit.SECONDS)) {
+                    long size = read.getBuffer().capacity();
+                    for (long i = 0; i < size; i++) {
+                        byte b = read.getBuffer().get();
+                        byte expected = (byte)(i % 127);
+                        assertThat(b, is(expected));
+                    }
+                }
+            }));
+        });
+    }
+
 }
