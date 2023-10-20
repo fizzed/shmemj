@@ -705,6 +705,9 @@ public class ShmemChannelTest {
         // process uses.  This will throw off where the "read" buffer starts between processes
         this.createChannels(5000, true, (serverChannel, clientChannel) -> {
             this.connectChannels(serverChannel, clientChannel, ((serverConn, clientConn) -> {
+                log.debug("server shmem size: {}", serverChannel.getShmem().getSize());
+                log.debug("client shmem size: {}", clientChannel.getShmem().getSize());
+
                 assertThat(serverChannel.getWriteBufferSize(), is(clientChannel.getReadBufferSize()));
                 assertThat(serverChannel.getReadBufferSize(), is(clientChannel.getWriteBufferSize()));
             }));
