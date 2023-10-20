@@ -142,13 +142,25 @@ public class blaze {
     }
 
     public void build_native_libs() throws Exception {
-        final OperatingSystem os = PlatformInfo.detectOperatingSystem();
-        final HardwareArchitecture arch = PlatformInfo.detectHardwareArchitecture();
-        final String os_str = os.name().toLowerCase();
-        final String arch_str = arch.name().toLowerCase();
+        String os_str = Contexts.config().value("target_os").orNull();
+        String arch_str = Contexts.config().value("target_arch").orNull();
 
-        log.info("Detected operating system: {}", os);
-        log.info("Detected hardware arch: {}", arch);
+        OperatingSystem os = PlatformInfo.detectOperatingSystem();
+        HardwareArchitecture arch = PlatformInfo.detectHardwareArchitecture();
+
+        if (os_str != null) {
+            os = OperatingSystem.valueOf(os_str.toUpperCase());
+        }
+
+        if (arch_str != null) {
+            arch = HardwareArchitecture.valueOf(arch_str.toUpperCase());
+        }
+
+        os_str = os.name().toLowerCase();
+        arch_str = arch.name().toLowerCase();
+
+        log.info("Building for operating system: {}", os);
+        log.info("Building for hardware arch: {}", arch);
 
         // rust target from os-arch
         // https://doc.rust-lang.org/nightly/rustc/platform-support.html
@@ -193,9 +205,11 @@ public class blaze {
             .workingDir(rustProjectDir)
             .run();
 
-        for (Path f : Globber.globber(rustArtifactDir, "*.so").filesOnly().scan()) {
-            log.info("Copying {} -> {}", f, javaOutputDir);
-            Files.copy(f, javaOutputDir.resolve(f.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+        for (String ext : asList(".so", ".dll", ".dylib")) {
+            for (Path f : Globber.globber(rustArtifactDir, "*"+ext).filesOnly().scan()) {
+                log.info("Copying {} -> {}", f, javaOutputDir);
+                Files.copy(f, javaOutputDir.resolve(f.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+            }
         }
 
         /*$input_dir = "$project_dir\native\target\$target\release"
