@@ -179,21 +179,19 @@ public class blaze {
             .setTags("build")
             .setHost("bmh-build-x64-win11-1"),
 
+        //
+        // Testing
+        //
 
-
-
-
-
-        new Target("linux", "arm64-test")
+        /*new Target("linux", "arm64-test")
             .setTags("test")
-            .setHost("bmh-build-arm64-ubuntu22-1"),
-        //.setContainerImage("fizzed/buildx:arm64v8-ubuntu18-jdk11"),
+            .setHost("bmh-build-arm64-ubuntu22-1"),*/
 
-        new Target("windows", "x64-test", "win10")
+        new Target("windows", "x64", "win10")
             .setTags("test")
             .setHost("bmh-build-x64-win10-1"),
 
-        new Target("windows", "x64-test", "win7")
+        new Target("windows", "x64", "win7")
             .setTags("test")
             .setHost("bmh-build-x64-win7-1")
 
@@ -254,7 +252,9 @@ public class blaze {
                 }
 
                 // i know its nuts but this will invoke a task within this file
-                project.action(buildScript, "build_natives", "--build-os", target.getOs(), "--build-arch", target.getArch()).run();
+                // NOTE: rust uses its cache heavily, causing issues when doing batch builds across architectures
+                // its important we do a clean before we build
+                project.action(buildScript, "clean_natives", "build_natives", "--build-os", target.getOs(), "--build-arch", target.getArch()).run();
 
                 /*String buildScript = "setup/build-native-lib-linux-action.sh";
                 if (target.getOs().equals("macos")) {
@@ -271,7 +271,7 @@ public class blaze {
             });
     }
 
-    public void cross_run_tests() throws Exception {
+    public void cross_tests() throws Exception {
         new Buildx(crossTargets)
             .setTags("test")
             .execute((target, project) -> {
