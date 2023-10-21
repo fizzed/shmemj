@@ -32,7 +32,7 @@ public class blaze {
         String arch_str = Contexts.config().value("build-arch").orNull();
         String libc_str = null;
 
-        if (os_str.endsWith("_musl")) {
+        if (os_str != null && os_str.endsWith("_musl")) {
             os_str = os_str.replace("_musl", "");
             libc_str = "musl";
         }
@@ -69,6 +69,7 @@ public class blaze {
 
         // rust target from os-arch
         // https://doc.rust-lang.org/nightly/rustc/platform-support.html
+        String jneArch = arch_str;
         String rustArch = null;
         switch (arch) {
             case X64:
@@ -85,6 +86,7 @@ public class blaze {
                 break;
         }
 
+        String jneOs = os_str;
         String rustOs = null;
         switch (os) {
             case WINDOWS:
@@ -92,6 +94,7 @@ public class blaze {
                 break;
             case LINUX:
                 if (linuxLibC == LinuxLibC.MUSL) {
+                    jneOs = "linux_musl";
                     rustOs = "unknown-linux-musl";
                 } else {
                     rustOs = "unknown-linux-gnu";
@@ -112,8 +115,9 @@ public class blaze {
 
         final Path rustProjectDir = withBaseDir("../native");
         final Path rustArtifactDir = rustProjectDir.resolve("target/"+rustTarget+"/release");
-        final Path javaOutputDir = withBaseDir("../shmemj-"+os_str+"-"+arch_str+"/src/main/resources/jne/"+os_str+"/"+arch_str);
+        final Path javaOutputDir = withBaseDir("../shmemj-"+jneOs+"-"+jneArch+"/src/main/resources/jne/"+jneOs+"/"+jneArch);
 
+        log.info("  jneTarget: {}", jneOs+"-"+jneArch);
         log.info("  rustTarget: {}", rustTarget);
         log.info("  rustProjectDir: {}", rustProjectDir);
         log.info("  rustArtifactDir: {}", rustArtifactDir);
