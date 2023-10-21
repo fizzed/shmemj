@@ -41,6 +41,16 @@
 
         <dependency>
             <groupId>com.fizzed</groupId>
+            <artifactId>shmemj-linux-riscv64</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fizzed</groupId>
+            <artifactId>shmemj-linux_musl-x64</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fizzed</groupId>
             <artifactId>shmemj-macos-arm64</artifactId>
         </dependency>
 

@@ -31,19 +31,6 @@
                 <version>${project.version}</version>
             </dependency>
 
-            <!--
-            <dependency>
-                <groupId>com.fizzed</groupId>
-                <artifactId>shmemj-linux-armhf</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.fizzed</groupId>
-                <artifactId>shmemj-linux-armel</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
             <dependency>
                 <groupId>com.fizzed</groupId>
                 <artifactId>shmemj-linux_musl-x64</artifactId>
@@ -52,15 +39,9 @@
 
             <dependency>
                 <groupId>com.fizzed</groupId>
-                <artifactId>shmemj-linux_musl-arm64</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.fizzed</groupId>
                 <artifactId>shmemj-linux-riscv64</artifactId>
                 <version>${project.version}</version>
-            </dependency>-->
+            </dependency>
 
             <dependency>
                 <groupId>com.fizzed</groupId>
