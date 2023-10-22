@@ -75,6 +75,12 @@
 
             <dependency>
                 <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-freebsd-x64</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
                 <artifactId>shmemj-all-natives</artifactId>
                 <version>${project.version}</version>
             </dependency>

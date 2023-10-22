@@ -16,14 +16,9 @@ BUILDARCH=$4
 # https://kerkour.com/rust-cross-compilation
 # https://www.docker.com/blog/cross-compiling-rust-code-for-multiple-architectures/
 
-
 DOCKERFILE="setup/Dockerfile.linux"
-
-if [ ! -z "$(echo $BUILDARCH | grep "\-test")" ]; then
-  DOCKERFILE="setup/Dockerfile.linux"
-  if [ "$BUILDOS" = "linux_musl" ]; then
-    DOCKERFILE="setup/Dockerfile.linux_musl"
-  fi
+if [ ! -z "$(echo $DOCKER_IMAGE | grep "\-alpine")" ]; then
+  DOCKERFILE="setup/Dockerfile.linux_musl"
 fi
 
 docker build -f "$DOCKERFILE" --progress=plain \

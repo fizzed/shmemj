@@ -74,6 +74,11 @@
             <artifactId>shmemj-windows-arm64</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.fizzed</groupId>
+            <artifactId>shmemj-freebsd-x64</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>

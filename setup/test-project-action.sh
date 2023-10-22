@@ -1,4 +1,4 @@
-#!/bin/sh -lei
+#!/bin/sh
 # shell w/ login & interactive, plus exit if any command fails
 
 BASEDIR=$(dirname "$0")
