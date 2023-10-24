@@ -56,7 +56,7 @@
             <dependency>
                 <groupId>com.fizzed</groupId>
                 <artifactId>jne</artifactId>
-                <version>3.3.0</version>
+                <version>4.0.1</version>
             </dependency>
 
             <dependency>

@@ -1,11 +1,9 @@
 import com.fizzed.blaze.Contexts;
+import com.fizzed.blaze.system.Exec;
 import com.fizzed.blaze.util.Globber;
 import com.fizzed.buildx.Buildx;
 import com.fizzed.buildx.Target;
-import com.fizzed.jne.HardwareArchitecture;
-import com.fizzed.jne.LinuxLibC;
-import com.fizzed.jne.OperatingSystem;
-import com.fizzed.jne.PlatformInfo;
+import com.fizzed.jne.*;
 import org.slf4j.Logger;
 
 import java.nio.file.Files;
@@ -20,105 +18,33 @@ import static java.util.Arrays.asList;
 public class blaze {
     final private Logger log = Contexts.logger();
 
+    private final Path projectDir = withBaseDir("..").toAbsolutePath();
+    private final Path rustProjectDir = withBaseDir("../native").toAbsolutePath();
+
+    public void test() throws Exception {
+        exec("mvn", "clean", "test")
+            .workingDir(projectDir)
+            .run();
+    }
+
     public void clean_natives() throws Exception {
-        final Path rustProjectDir = withBaseDir("../native");
         exec("cargo", "clean")
             .workingDir(rustProjectDir)
             .run();
     }
 
     public void build_natives() throws Exception {
-        String os_str = Contexts.config().value("build-os").orNull();
-        String arch_str = Contexts.config().value("build-arch").orNull();
-        String libc_str = null;
-
-        if (os_str != null && os_str.endsWith("_musl")) {
-            os_str = os_str.replace("_musl", "");
-            libc_str = "musl";
-        }
-
-        OperatingSystem os = PlatformInfo.detectOperatingSystem();
-        HardwareArchitecture arch = PlatformInfo.detectHardwareArchitecture();
-        LinuxLibC linuxLibC = PlatformInfo.detectLinuxLibC();
-
-        if (os_str != null) {
-            os = OperatingSystem.valueOf(os_str.toUpperCase());
-        }
-
-        if (arch_str != null) {
-            arch = HardwareArchitecture.valueOf(arch_str.toUpperCase());
-        }
-
-        if (libc_str != null) {
-            linuxLibC = LinuxLibC.valueOf(libc_str.toUpperCase());
-        }
-
-        os_str = os.name().toLowerCase();
-        arch_str = arch.name().toLowerCase();
-        libc_str = linuxLibC.name().toLowerCase();
-
-        log.info("=================================================");
-        log.info("");
-        log.info("NOTE: you can target a specific os/arch by passing in --build-os <os> or --build-arch <arch>");
-        log.info("on the command line when you run this script.");
-        log.info("");
-        log.info("Building for:");
-        log.info("  operating system: {}", os);
-        log.info("  hardware arch: {}", arch);
-        log.info("  linux libc: {}", linuxLibC);
-
-        // rust target from os-arch
-        // https://doc.rust-lang.org/nightly/rustc/platform-support.html
-        String jneArch = arch_str;
-        String rustArch = null;
-        switch (arch) {
-            case X64:
-                rustArch = "x86_64";
-                break;
-            case X32:
-                rustArch = "i686";
-                break;
-            case ARM64:
-                rustArch = "aarch64";
-                break;
-            case RISCV64:
-                rustArch = "riscv64gc";
-                break;
-        }
-
-        String jneOs = os_str;
-        String rustOs = null;
-        switch (os) {
-            case WINDOWS:
-                rustOs = "pc-windows-msvc";
-                break;
-            case LINUX:
-                if (linuxLibC == LinuxLibC.MUSL) {
-                    jneOs = "linux_musl";
-                    rustOs = "unknown-linux-musl";
-                } else {
-                    rustOs = "unknown-linux-gnu";
-                }
-                break;
-            case MACOS:
-                rustOs = "apple-darwin";
-                break;
-            case FREEBSD:
-                rustOs = "unknown-freebsd";
-                break;
-            case OPENBSD:
-                rustOs = "unknown-openbsd";
-                break;
-        }
-
-        final String rustTarget = rustArch + "-" + rustOs;
+        final String targetStr = Contexts.config().value("target").orNull();
+        final NativeTarget nativeTarget = targetStr != null ? NativeTarget.fromJneTarget(targetStr) : NativeTarget.detect();
+        final String jneTarget = nativeTarget.toJneTarget();
+        final String rustTarget = nativeTarget.toRustTarget();
 
         final Path rustProjectDir = withBaseDir("../native");
-        final Path rustArtifactDir = rustProjectDir.resolve("target/"+rustTarget+"/release");
-        final Path javaOutputDir = withBaseDir("../shmemj-"+jneOs+"-"+jneArch+"/src/main/resources/jne/"+jneOs+"/"+jneArch);
+        final Path rustArtifactDir = rustProjectDir.resolve("target/" + rustTarget + "/release");
+        final Path javaOutputDir = withBaseDir("../shmemj-" + jneTarget + "/src/main/resources/jne/" + nativeTarget.toJneOsAbi() + "/" + nativeTarget.toJneArch());
 
-        log.info("  jneTarget: {}", jneOs+"-"+jneArch);
-        log.info("  rustTarget: {}", rustTarget);
+        log.info("  jneTarget: {}", nativeTarget.toJneTarget());
+        log.info("  rustTarget: {}", nativeTarget.toRustTarget());
         log.info("  rustProjectDir: {}", rustProjectDir);
         log.info("  rustArtifactDir: {}", rustArtifactDir);
         log.info("  javaOutputDir: {}", javaOutputDir);
@@ -138,52 +64,63 @@ public class blaze {
     }
 
     private final List<Target> crossTargets = asList(
-        // Linux x64 (ubuntu 16.04, glibc 2.?)
-        new Target("linux", "x64", "ubuntu16.04")
+        //
+        // Linux GNU
+        //
+
+        new Target("linux", "x64", "ubuntu16.04, jdk11")
             .setTags("build", "test")
-            .setContainerImage("fizzed/buildx:amd64-ubuntu16-jdk11-buildx-linux-x64"),
+            .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-x64"),
 
-        // Linux arm64 (ubuntu 16.04, glibc 2.?)
-        new Target("linux", "arm64", "ubuntu16.04")
+        new Target("linux", "arm64", "ubuntu16.04, jdk11")
             .setTags("build")
-            .setContainerImage("fizzed/buildx:amd64-ubuntu16-jdk11-buildx-linux-arm64"),
+            .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-arm64"),
 
-        // Linux riscv64 (ubuntu 18.04, glibc 2.?)
-        new Target("linux", "riscv64", "ubuntu18.04")
+        // riscv64 only on ubuntu18+
+        new Target("linux", "riscv64", "ubuntu18.04, jdk11")
             .setTags("build")
-            .setContainerImage("fizzed/buildx:amd64-ubuntu18-jdk11-buildx-linux-riscv64"),
+            .setContainerImage("fizzed/buildx:x64-ubuntu18-jdk11-buildx-linux-riscv64"),
 
-        // Linux MUSL x64 (alpine 3.11)
-        new Target("linux_musl", "x64")
+        //
+        // Linux MUSL
+        //
+
+        new Target("linux_musl", "x64", "ubuntu16.04, jdk11")
             .setTags("build")
-            .setContainerImage("fizzed/buildx:amd64-ubuntu16-jdk11-buildx-linux-musl-x64"),
+            .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux_musl-x64"),
 
-        // MacOS x64 (10.13+)
+        //
+        // MacOS
+        //
+
         new Target("macos", "x64", "macos10.13")
-            .setTags("build")
+            .setTags("build", "test")
             .setHost("bmh-build-x64-macos1013-1"),
 
-        // MacOS arm64 (??)
         new Target("macos", "arm64", "macos11")
             .setTags("build")
             .setHost("bmh-build-x64-macos11-1"),
 
-        // Windows x64 (win7+)
+        //
+        // Windows
+        //
+
         new Target("windows", "x64", "win11")
-            .setTags("build")
+            .setTags("build", "test")
             .setHost("bmh-build-x64-win11-1"),
 
-        // Windows x32 (win7+)
         new Target("windows", "x32", "win11")
             .setTags("build")
             .setHost("bmh-build-x64-win11-1"),
 
-        // Windows arm64 (win10+)
         new Target("windows", "arm64", "win11")
             .setTags("build")
             .setHost("bmh-build-x64-win11-1"),
 
-        // FreeBSD x64 (12+)
+        //
+        // FreeBSD
+        //
+
         new Target("freebsd", "x64", "freebsd12")
             .setTags("build", "test")
             .setHost("bmh-build-x64-freebsd12-1"),
@@ -194,15 +131,23 @@ public class blaze {
 
         new Target("linux", "x64", "ubuntu22.04, jdk11")
             .setTags("test")
-            .setContainerImage("fizzed/buildx:amd64-ubuntu22-jdk11"),
+            .setContainerImage("fizzed/buildx:x64-ubuntu22-jdk11"),
+
+        new Target("linux", "x64", "ubuntu22.04, jdk17")
+            .setTags("test")
+            .setContainerImage("fizzed/buildx:x64-ubuntu22-jdk17"),
 
         new Target("linux", "x64", "ubuntu22.04, jdk21")
             .setTags("test")
-            .setContainerImage("fizzed/buildx:amd64-ubuntu22-jdk21"),
+            .setContainerImage("fizzed/buildx:x64-ubuntu22-jdk21"),
 
         new Target("linux_musl", "x64", "alpine3.11, jdk11")
             .setTags("test")
-            .setContainerImage("fizzed/buildx:amd64-alpine3.11-jdk11"),
+            .setContainerImage("fizzed/buildx:x64-alpine3.11-jdk11"),
+
+        new Target("macos", "arm64", "macos12")
+            .setTags("test")
+            .setHost("bmh-build-arm64-macos12-1"),
 
         new Target("windows", "x64", "win10")
             .setTags("test")
@@ -211,6 +156,10 @@ public class blaze {
         new Target("windows", "x64", "win7")
             .setTags("test")
             .setHost("bmh-build-x64-win7-1"),
+
+        new Target("windows", "arm64", "win11")
+            .setTags("test")
+            .setHost("bmh-build-arm64-win11-1"),
 
         new Target("linux", "riscv64", "debian11")
             .setTags("test")
@@ -225,9 +174,7 @@ public class blaze {
 
 
         // Windows arm64 (win10+)
-        new Target("windows", "arm64")
-            .setTags("build")
-            .setHost("bmh-build-x64-win11-1"),*/
+        ,*/
 
     );
 
@@ -250,11 +197,28 @@ public class blaze {
     }
 
     public void cross_build_containers() throws Exception {
+        final String user = System.getenv("USER");
+        final String userId = exec("id", "-u", user).runCaptureOutput().toString();
         new Buildx(crossTargets)
+            .onlyWithContainers()
             .execute((target, project) -> {
-                if (project.hasContainer()) {
-                    project.exec("setup/build-docker-container-action.sh", target.getContainerImage(), project.getContainerName(), target.getOs(), target.getArch()).run();
+                // we need a temp .m2 and .ivy2
+                Files.createDirectories(projectDir.resolve(".buildx-temp/m2"));
+                Files.createDirectories(projectDir.resolve(".buildx-temp/ivy2"));
+
+                String dockerFile = "setup/Dockerfile.linux";
+                if (target.getContainerImage().contains("alpine")) {
+                    dockerFile = "setup/Dockerfile.linux_musl";
                 }
+
+                project.exec("docker", "build",
+                        "-f", dockerFile,
+                        "--build-arg", "FROM_IMAGE="+target.getContainerImage(),
+                        "--build-arg", "USERID="+userId,
+                        "--build-arg", "USERNAME="+user,
+                        "-t", project.getContainerName(),
+                        "setup")
+                    .run();
             });
     }
 
@@ -262,28 +226,9 @@ public class blaze {
         new Buildx(crossTargets)
             .setTags("build")
             .execute((target, project) -> {
-
-                /*String buildScript = "setup/build-native-lib-linux-action2.sh";
-                project.action(buildScript, target.getOs(), target.getArch()).run();*/
-
-                String buildScript = "setup/blaze-action.sh";
-                if (target.getOs().equals("windows")) {
-                    buildScript = "setup/blaze-action.bat";
-                }
-
-                // i know its nuts but this will invoke a task within this file
                 // NOTE: rust uses its cache heavily, causing issues when doing batch builds across architectures
                 // its important we do a clean before we build
-                project.action(buildScript, "clean_natives", "build_natives", "--build-os", target.getOs(), "--build-arch", target.getArch()).run();
-
-                /*String buildScript = "setup/build-native-lib-linux-action.sh";
-                if (target.getOs().equals("macos")) {
-                    buildScript = "setup/build-native-lib-macos-action.sh";
-                } else if (target.getOs().equals("windows")) {
-                    buildScript = "setup/build-native-lib-windows-action.bat";
-                }
-
-                project.action(buildScript, target.getOs(), target.getArch()).run();*/
+                project.action("java", "-jar", "blaze.jar", "clean_natives", "build_natives", "--target", target.getOsArch()).run();
 
                 // we know that the only modified file will be in the artifact dir
                 final String artifactRelPath = "shmemj-" + target.getOsArch() + "/src/main/resources/jne/" + target.getOs() + "/" + target.getArch() + "/";
@@ -291,16 +236,23 @@ public class blaze {
             });
     }
 
+    public void test_shell() throws Exception {
+        new Buildx(crossTargets)
+            .setTags("build")
+            .execute((target, project) -> {
+                project.getSshSession().newExec()
+                    .command("/Users/builder/remote-build/shmemj/setup/test-exec.sh")
+                    .args("java", "-version")
+                    .run();
+            });
+    }
+
     public void cross_tests() throws Exception {
         new Buildx(crossTargets)
             .setTags("test")
             .execute((target, project) -> {
-                String testScript = "setup/test-project-action.sh";
-                if (target.getOs().equals("windows")) {
-                    testScript = "setup/test-project-action.bat";
-                }
-
-                project.action(testScript).run();
+//                project.action("java", "-jar", "blaze.jar", "test").run();
+                project.action("java", "-jar", "blaze.jar", "test").run();
             });
     }
 

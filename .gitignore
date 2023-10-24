@@ -1,4 +1,5 @@
 *.h
 target
 .idea
-.temp-m2
+.buildx
+.buildx-temp

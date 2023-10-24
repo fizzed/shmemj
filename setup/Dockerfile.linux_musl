@@ -7,3 +7,7 @@ ARG USERNAME
 
 RUN adduser -D -u ${USERID} ${USERNAME}
 USER ${USERNAME}
+
+# use cached .m2 and .ivy2
+RUN ln -s /project/.buildx-temp/m2 ~/.m2
+RUN ln -s /project/.buildx-temp/ivy2 ~/.ivy2

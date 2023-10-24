@@ -8,3 +8,7 @@ ARG USERNAME
 RUN groupadd -g ${USERID} ${USERNAME}
 RUN useradd -m -l -u ${USERID} -g ${USERNAME} ${USERNAME}
 USER ${USERNAME}
+
+# use cached .m2 and .ivy2
+RUN ln -s /project/.buildx-temp/m2 ~/.m2
+RUN ln -s /project/.buildx-temp/ivy2 ~/.ivy2
