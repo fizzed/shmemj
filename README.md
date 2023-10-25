@@ -1,6 +1,165 @@
-# Shmemj (Shared Memory for Java)
+# Shmemj (Shared Memory for Java) by Fizzed
 
-# Building
+Access and use shared memory from the host operating system in Java on a wide variety of operating systems. Extremely
+fast and efficient method of IPC (interprocess communication) between Java-to-Java processes or even Java-to-other 
+processes written in different languages.
+
+## Features
+
+ - Lightweight wrappers around shared memory APIs in an OS agnostic way
+ - Lightweight wrapper around OS synchronization primitives including conditions with lock and atomic variable implementations
+ - Native binding for Java are written in Rust
+ - Thorough unit tests along with automated testing across operating systems and versions
+ - Sophisticated ```ShmemChannel``` which provides a socket-like interface for communicating between Java programs
+
+## Performance
+
+```ShmemChannel``` is up to 2-3x faster on linux compared to TCP/Unix Domain sockets, 5-6x faster on Windows, and
+almost 9-10x faster on MacOS.
+
+## Usage
+
+Add the following to your maven POM file for Linux x64
+
+```xml
+<dependency>
+  <groupId>com.fizzed</groupId>
+  <artifactId>shmemj-linux-x64</artifactId>
+  <version>VERSION-HERE</version>
+</dependency>
+```
+
+Or MacOS arm64 (Apple silicon)
+
+```xml
+<dependency>
+  <groupId>com.fizzed</groupId>
+  <artifactId>shmemj-macos-arm64</artifactId>
+  <version>VERSION-HERE</version>
+</dependency>
+```
+
+Or for all operating system & arches
+
+```xml
+<dependency>
+  <groupId>com.fizzed</groupId>
+  <artifactId>shmemj-all-natives</artifactId>
+  <version>VERSION-HERE</version>
+</dependency>
+```
+
+To simplify versions, you may optionally want to import our BOM (bill of materials)
+
+```xml
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>com.fizzed</groupId>
+            <artifactId>shmemj-bom</artifactId>
+            <version>VERSION-HERE</version>
+            <scope>import</scope>
+            <type>pom</type>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+```
+
+To use shared memory, use the factory to build one:
+
+```java
+import com.fizzed.shmemj.Shmem;
+import com.fizzed.shmemj.ShmemFactory;
+
+... other code
+
+Shmem shmem = new ShmemFactory()
+    .setSize(2048L)
+    .create();
+
+ByteBuffer buf = shmem.newByteBuffer(0, 30);
+buf.putDouble(5.4d);
+buf.putDouble(3.12345d);
+buf.putDouble(3.12345d);
+```
+
+To use the shared memory channel (a socket-like class):
+
+```java
+package com.fizzed.shmemj.demo;
+
+import com.fizzed.shmemj.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.channels.ClosedChannelException;
+import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
+
+import static com.fizzed.shmemj.demo.DemoHelper.*;
+
+public class ShmemChannelServerDemo {
+    static private final Logger log = LoggerFactory.getLogger(ShmemChannelServerDemo.class);
+
+    static public void main(String[] args) throws Exception {
+        final Path address = temporaryFile("shmem_channel_demo.sock");
+
+        try (final ShmemServerChannel channel = new ShmemChannelFactory().setSize(4096L).setAddress(address).setSpinLocks(true).createServerChannel()) {
+            for (;;) {
+                log.info("Listening on channel {} (as pid {})", channel.getAddress(), ProcessProvider.DEFAULT.getCurrentPid());
+
+                try (final ShmemChannelConnection conn = channel.accept(120, TimeUnit.SECONDS)) {
+
+                    log.info("Connected with process pid={}", conn.getRemotePid());
+
+                    for (;;) {
+                        // recv request
+                        String req;
+                        try (ShmemChannel.Read read = conn.read(5, TimeUnit.SECONDS)) {
+                            req = getStringUTF8(read.getBuffer());
+                            log.debug("Received: {}", req);
+                        }
+
+                        // send response
+                        try (ShmemChannel.Write write = conn.write(5, TimeUnit.SECONDS)) {
+                            String resp = req + " World!";
+                            putStringUTF8(write.getBuffer(), resp);
+                            log.debug("Sending: {}", resp);
+                        }
+                    }
+                } catch (ShmemClosedConnectionException e) {
+                    log.info("Closed connection {}: error={}", channel.getAddress(), e.getMessage());
+                }
+            }
+        } catch (ShmemDestroyedException e) {
+            log.info("Destroyed channel {}", address);
+        }
+
+        log.info("Done. Exiting.");
+    }
+
+}
+```
+
+## Native Libs
+
+| Platform | Artifact | Notes |
+| :--------------- | :----------- | :---- |
+| freebsd x64 | shmemj-freebsd-x64 | freebsd 12+ |
+| linux arm64 | shmemj-linux-arm64 | built on ubuntu 16.04, glibc 2.23+ |
+| linux armel | shmemj-linux-armel | built on ubuntu 16.04, glibc 2.23+ |
+| linux armhf | shmemj-linux-armhf | built on ubuntu 16.04, glibc 2.23+ |
+| linux riscv64 | shmemj-linux-riscv64 | built on ubuntu 18.04, glibc 2.31+ |
+| linux x32 | shmemj-linux-x32 | built on ubuntu 16.04, glibc 2.23+ |
+| linux x64 | shmemj-linux-x64 | built on ubuntu 16.04, glibc 2.23+ |
+| linux_musl x64 | shmemj-linux_musl-x64 | alpine 3.11+ |
+| macos arm64 | shmemj-macos-arm64 | macos 11+ |
+| macos x64 | shmemj-macos-x64 | macos 10.13+ |
+| windows arm64 | shmemj-windows-arm64 | win 10+ |
+| windows x32 | shmemj-windows-x32 | win 7+ |
+| windows x64 | shmemj-windows-x64 | win 7+ |
+
+## Building
 
 You need to install the target for rust to compile with.  On windows:
 

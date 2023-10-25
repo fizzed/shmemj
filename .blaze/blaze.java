@@ -10,11 +10,13 @@ import org.slf4j.Logger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.fizzed.blaze.Contexts.withBaseDir;
 import static com.fizzed.blaze.Systems.exec;
 import static java.util.Arrays.asList;
+import static java.util.stream.Collectors.toList;
 
 public class blaze {
     final private Logger log = Contexts.logger();
@@ -74,28 +76,28 @@ public class blaze {
         // Linux GNU
         //
 
-        new Target("linux", "x64", "ubuntu16.04, jdk11")
+        new Target("linux", "x64", "built on ubuntu 16.04, glibc 2.23+")
             .setTags("build", "test")
             .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-x64"),
 
-        new Target("linux", "arm64", "ubuntu16.04, jdk11")
+        new Target("linux", "arm64", "built on ubuntu 16.04, glibc 2.23+")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-arm64"),
 
         // riscv64 only on ubuntu18+
-        new Target("linux", "riscv64", "ubuntu18.04, jdk11")
+        new Target("linux", "riscv64", "built on ubuntu 18.04, glibc 2.31+")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu18-jdk11-buildx-linux-riscv64"),
 
-        new Target("linux", "armhf", "ubuntu16.04, jdk11")
+        new Target("linux", "armhf", "built on ubuntu 16.04, glibc 2.23+")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-armhf"),
 
-        new Target("linux", "armel", "ubuntu16.04, jdk11")
+        new Target("linux", "armel", "built on ubuntu 16.04, glibc 2.23+")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-armel"),
 
-        new Target("linux", "x32", "ubuntu16.04, jdk11")
+        new Target("linux", "x32", "built on ubuntu 16.04, glibc 2.23+")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-x32"),
 
@@ -103,7 +105,7 @@ public class blaze {
         // Linux MUSL
         //
 
-        new Target("linux_musl", "x64", "ubuntu16.04, jdk11")
+        new Target("linux_musl", "x64", "alpine 3.11+")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux_musl-x64"),
 
@@ -111,11 +113,11 @@ public class blaze {
         // MacOS
         //
 
-        new Target("macos", "x64", "macos10.13")
+        new Target("macos", "x64", "macos 10.13+")
             .setTags("build", "test")
             .setHost("bmh-build-x64-macos1013-1"),
 
-        new Target("macos", "arm64", "macos11")
+        new Target("macos", "arm64", "macos 11+")
             .setTags("build")
             .setHost("bmh-build-x64-macos11-1"),
 
@@ -123,15 +125,15 @@ public class blaze {
         // Windows
         //
 
-        new Target("windows", "x64", "win11")
+        new Target("windows", "x64", "win 7+")
             .setTags("build", "test")
             .setHost("bmh-build-x64-win11-1"),
 
-        new Target("windows", "x32", "win11")
+        new Target("windows", "x32", "win 7+")
             .setTags("build")
             .setHost("bmh-build-x64-win11-1"),
 
-        new Target("windows", "arm64", "win11")
+        new Target("windows", "arm64", "win 10+")
             .setTags("build")
             .setHost("bmh-build-x64-win11-1"),
 
@@ -139,16 +141,24 @@ public class blaze {
         // FreeBSD
         //
 
-        new Target("freebsd", "x64", "freebsd12")
+        new Target("freebsd", "x64", "freebsd 12+")
             .setTags("build", "test")
             .setHost("bmh-build-x64-freebsd12-1"),
+
+        //
+        // OpenBSD (will not compile due to pthread usage)
+        //
+
+        /*new Target("openbsd", "x64", "openbsd7.2")
+            .setTags("build", "test")
+            .setHost("bmh-build-x64-openbsd72-1"),*/
 
         //
         // Testing Only
         //
 
         new Target(localNativeTarget.toJneOsAbi(), localNativeTarget.toJneArch(), "local machine")
-            .setTags("build", "dude", "test"),
+            .setTags("test"),
 
         new Target("linux", "x64", "ubuntu22.04, jdk11")
             .setTags("test")
@@ -200,7 +210,11 @@ public class blaze {
 
         new Target("linux", "riscv64", "debian11")
             .setTags("test")
-            .setHost("bmh-build-riscv64-debian11-1")
+            .setHost("bmh-build-riscv64-debian11-1"),
+
+        new Target("freebsd", "x64", "freebsd13")
+            .setTags("test")
+            .setHost("bmh-build-x64-freebsd13-1")
     );
 
     @Task(order=50)
@@ -243,6 +257,50 @@ public class blaze {
             .execute((target, project) -> {
                 project.action("java", "-jar", "blaze.jar", "test").run();
             });
+    }
+
+    @Task(order=54)
+    public void cross_markdown() throws Exception {
+
+        System.out.println();
+
+        // generate list of artifacts built
+        final Map<String,Target> buildTargets = new TreeMap<>();
+        crossTargets.stream()
+            .filter(v -> !v.getDescription().contains("local"))
+            .filter(v -> v.getTags().contains("build"))
+            .forEach(v -> buildTargets.put(v.getOsArch(), v));
+
+        System.out.println("| Platform | Artifact | Notes |");
+        System.out.println("| :--------------- | :----------- | :---- |");
+        for (Target target : buildTargets.values()) {
+            System.out.println("| " + target.getOs() + " " + target.getArch() + " | " + "shmemj-"+target.getOsArch() + " | " + target.getDescription() + " |");
+        }
+
+        System.out.println();
+        System.out.println();
+
+        // generate list of tests run
+        final List<Target> testTargets = crossTargets.stream()
+            .filter(v -> !v.getDescription().contains("local"))
+            .filter(v -> v.getTags().contains("test"))
+            .sorted((a, b) -> {
+                int c = a.getOs().compareTo(b.getOs());
+                if (c == 0) {
+                    c = a.getArch().compareTo(b.getArch());
+                    if (c == 0) {
+                        c = a.getDescription().compareTo(b.getDescription());
+                    }
+                }
+                return c;
+            })
+            .collect(toList());
+
+        System.out.println("| Operating System | Architecture | Notes |");
+        System.out.println("| :--------------- | :----------- | :---- |");
+        for (Target target : testTargets) {
+            System.out.println("| " + target.getOs() + " | " + target.getArch() + " | " + target.getDescription() + " |");
+        }
     }
 
 }
