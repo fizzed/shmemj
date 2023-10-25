@@ -1,5 +1,9 @@
 # Shmemj (Shared Memory for Java) by Fizzed
 
+[![Maven Central](https://img.shields.io/maven-central/v/com.fizzed/shmemj?color=blue&style=flat-square)](https://mvnrepository.com/artifact/com.fizzed/shmemj)
+
+[Fizzed, Inc.](http://fizzed.com) (Follow on Twitter: [@fizzed_inc](http://twitter.com/fizzed_inc))
+
 Access and use shared memory from the host operating system in Java on a wide variety of operating systems. Extremely
 fast and efficient method of IPC (interprocess communication) between Java-to-Java processes or even Java-to-other 
 processes written in different languages.
@@ -159,7 +163,33 @@ public class ShmemChannelServerDemo {
 | windows x32 | shmemj-windows-x32 | win 7+ |
 | windows x64 | shmemj-windows-x64 | win 7+ |
 
-## Building
+## Development
+
+We leverage Rust for the native implementation.  If you need to hack on the Rust code, install the rust toolchain along
+with cargo.
+
+    java -jar blaze.jar build_natives
+
+To run tests
+
+    mvn test
+
+### Cross Building
+
+We use a simple, yet quite sophisticated build system for fast, local builds across operating system and architectures.
+
+For linux targets, we leverage docker containers either running locally on an x86_64 host, or remotely on dedicated
+build machines running on arm64, macos x64, and macos arm64.
+
+To build containers, you'll want to edit setup/blaze.java and comment out/edit which platforms you'd like to build for,
+or potentially change them running on a remote machine via SSH.  Once you're happy with what you want to build for:
+
+     java -jar blaze.jar cross_build_containers
+     java -jar blaze.jar cross_build_natives
+     java -jar blaze.jar cross_tests
+
+For information on registering your x86_64 host to run other architectures (e.g. riscv64 or aarch64), please see
+the readme for https://github.com/fizzed/buildx
 
 You need to install the target for rust to compile with.  On windows:
 
@@ -172,7 +202,8 @@ On macos:
     rustup target add x86_64-apple-darwin
     rustup target add aarch64-apple-darwin
 
-On linux:
+## License
 
-    rustup target add x86_64-unknown-linux-gnu
-    rustup target add aarch64-unknown-linux-gnu
+Copyright (C) 2023 Fizzed, Inc.
+
+This work is licensed under the Apache License, Version 2.0. See LICENSE for details.
