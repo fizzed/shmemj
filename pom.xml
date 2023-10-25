@@ -2,7 +2,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>shmemj</artifactId>
-    <version>0.0.2</version>
+    <version>0.0.3-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <parent>
@@ -18,7 +18,7 @@
     <scm>
         <url>https://github.com/fizzed/shmemj</url>
         <connection>scm:git:git@github.com:fizzed/shmemj.git</connection>
-        <tag>v0.0.2</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <modules>
