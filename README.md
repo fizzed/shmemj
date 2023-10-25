@@ -70,6 +70,8 @@ To simplify versions, you may optionally want to import our BOM (bill of materia
 </dependencyManagement>
 ```
 
+The easiest way to see this library in action is to peruse the various demos and benchmarks: https://github.com/fizzed/shmemj/tree/master/shmemj-integration-tests/src/main/java/com/fizzed/shmemj/demo
+
 To use shared memory, use the factory to build one:
 
 ```java
