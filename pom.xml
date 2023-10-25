@@ -24,7 +24,10 @@
     <modules>
         <module>shmemj-api</module>
         <module>shmemj-linux-x64</module>
+        <module>shmemj-linux-x32</module>
         <module>shmemj-linux-arm64</module>
+        <module>shmemj-linux-armhf</module>
+        <module>shmemj-linux-armel</module>
         <module>shmemj-linux-riscv64</module>
         <module>shmemj-linux_musl-x64</module>
         <module>shmemj-macos-x64</module>

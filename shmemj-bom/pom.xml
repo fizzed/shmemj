@@ -27,7 +27,25 @@
 
             <dependency>
                 <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-linux-x32</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
                 <artifactId>shmemj-linux-arm64</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-linux-armhf</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fizzed</groupId>
+                <artifactId>shmemj-linux-armel</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

@@ -1,9 +1,10 @@
 import com.fizzed.blaze.Contexts;
-import com.fizzed.blaze.system.Exec;
+import com.fizzed.blaze.Task;
 import com.fizzed.blaze.util.Globber;
 import com.fizzed.buildx.Buildx;
+import com.fizzed.buildx.ContainerBuilder;
 import com.fizzed.buildx.Target;
-import com.fizzed.jne.*;
+import com.fizzed.jne.NativeTarget;
 import org.slf4j.Logger;
 
 import java.nio.file.Files;
@@ -20,19 +21,9 @@ public class blaze {
 
     private final Path projectDir = withBaseDir("..").toAbsolutePath();
     private final Path rustProjectDir = withBaseDir("../native").toAbsolutePath();
+    private final NativeTarget localNativeTarget = NativeTarget.detect();
 
-    public void test() throws Exception {
-        exec("mvn", "clean", "test")
-            .workingDir(projectDir)
-            .run();
-    }
-
-    public void clean_natives() throws Exception {
-        exec("cargo", "clean")
-            .workingDir(rustProjectDir)
-            .run();
-    }
-
+    @Task(order=10)
     public void build_natives() throws Exception {
         final String targetStr = Contexts.config().value("target").orNull();
         final NativeTarget nativeTarget = targetStr != null ? NativeTarget.fromJneTarget(targetStr) : NativeTarget.detect();
@@ -43,6 +34,7 @@ public class blaze {
         final Path rustArtifactDir = rustProjectDir.resolve("target/" + rustTarget + "/release");
         final Path javaOutputDir = withBaseDir("../shmemj-" + jneTarget + "/src/main/resources/jne/" + nativeTarget.toJneOsAbi() + "/" + nativeTarget.toJneArch());
 
+        log.info("=================================================");
         log.info("  jneTarget: {}", nativeTarget.toJneTarget());
         log.info("  rustTarget: {}", nativeTarget.toRustTarget());
         log.info("  rustProjectDir: {}", rustProjectDir);
@@ -63,6 +55,20 @@ public class blaze {
         }
     }
 
+    @Task(order=20)
+    public void clean_natives() throws Exception {
+        exec("cargo", "clean")
+            .workingDir(rustProjectDir)
+            .run();
+    }
+
+    @Task(order=30)
+    public void test() throws Exception {
+        exec("mvn", "clean", "test")
+            .workingDir(projectDir)
+            .run();
+    }
+
     private final List<Target> crossTargets = asList(
         //
         // Linux GNU
@@ -80,6 +86,18 @@ public class blaze {
         new Target("linux", "riscv64", "ubuntu18.04, jdk11")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu18-jdk11-buildx-linux-riscv64"),
+
+        new Target("linux", "armhf", "ubuntu16.04, jdk11")
+            .setTags("build")
+            .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-armhf"),
+
+        new Target("linux", "armel", "ubuntu16.04, jdk11")
+            .setTags("build")
+            .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-armel"),
+
+        new Target("linux", "x32", "ubuntu16.04, jdk11")
+            .setTags("build")
+            .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-x32"),
 
         //
         // Linux MUSL
@@ -129,6 +147,9 @@ public class blaze {
         // Testing Only
         //
 
+        new Target(localNativeTarget.toJneOsAbi(), localNativeTarget.toJneArch(), "local machine")
+            .setTags("build", "dude", "test"),
+
         new Target("linux", "x64", "ubuntu22.04, jdk11")
             .setTags("test")
             .setContainerImage("fizzed/buildx:x64-ubuntu22-jdk11"),
@@ -140,6 +161,22 @@ public class blaze {
         new Target("linux", "x64", "ubuntu22.04, jdk21")
             .setTags("test")
             .setContainerImage("fizzed/buildx:x64-ubuntu22-jdk21"),
+
+        new Target("linux", "x32", "ubuntu16.04, jdk11")
+            .setTags("test")
+            .setContainerImage("fizzed/buildx:x32-ubuntu16-jdk11"),
+
+        new Target("linux", "arm64", "ubuntu16.04, jdk11")
+            .setTags("test")
+            .setContainerImage("fizzed/buildx:arm64-ubuntu16-jdk11"),
+
+        new Target("linux", "armhf", "ubuntu16.04, jdk11")
+            .setTags("test")
+            .setContainerImage("fizzed/buildx:armhf-ubuntu16-jdk11"),
+
+        new Target("linux", "armel", "debian11, jdk11")
+            .setTags("test")
+            .setContainerImage("fizzed/buildx:armel-debian11-jdk11"),
 
         new Target("linux_musl", "x64", "alpine3.11, jdk11")
             .setTags("test")
@@ -164,67 +201,30 @@ public class blaze {
         new Target("linux", "riscv64", "debian11")
             .setTags("test")
             .setHost("bmh-build-riscv64-debian11-1")
-
-        /*
-        // MacOS arm64 (12+)
-        new Target("macos", "arm64")
-            .setTags("build", "test")
-            .setHost("bmh-build-arm64-macos12-1"),
-
-
-
-        // Windows arm64 (win10+)
-        ,*/
-
     );
 
-    public void cross_targets() throws Exception {
-        log.info("Build Targets:");
-        new Buildx(crossTargets).getTargets().forEach(target -> {
-            if (target.getTags().contains("build")) {
-                log.info("  {}", target.getOsArch());
-                if (target.getContainerImage() != null) {
-                    log.info("    container: {}", target.getContainerImage());
-                }
-            }
-        });
-        log.info("Test Targets:");
-        new Buildx(crossTargets).getTargets().forEach(target -> {
-            if (target.getTags().contains("test")) {
-                log.info("  {}", target.getOsArch());
-            }
-        });
+    @Task(order=50)
+    public void cross_list_targets() throws Exception {
+        new Buildx(crossTargets)
+            .listTargets();
     }
 
+    @Task(order=51)
     public void cross_build_containers() throws Exception {
-        final String user = System.getenv("USER");
-        final String userId = exec("id", "-u", user).runCaptureOutput().toString();
         new Buildx(crossTargets)
-            .onlyWithContainers()
+            .containersOnly()
             .execute((target, project) -> {
-                // we need a temp .m2 and .ivy2
-                Files.createDirectories(projectDir.resolve(".buildx-temp/m2"));
-                Files.createDirectories(projectDir.resolve(".buildx-temp/ivy2"));
-
-                String dockerFile = "setup/Dockerfile.linux";
-                if (target.getContainerImage().contains("alpine")) {
-                    dockerFile = "setup/Dockerfile.linux_musl";
-                }
-
-                project.exec("docker", "build",
-                        "-f", dockerFile,
-                        "--build-arg", "FROM_IMAGE="+target.getContainerImage(),
-                        "--build-arg", "USERID="+userId,
-                        "--build-arg", "USERNAME="+user,
-                        "-t", project.getContainerName(),
-                        "setup")
-                    .run();
+                // no customization needed
+                project.buildContainer(new ContainerBuilder()
+                    //.setCache(false)
+                );
             });
     }
 
+    @Task(order=52)
     public void cross_build_natives() throws Exception {
         new Buildx(crossTargets)
-            .setTags("build")
+            .tags("build")
             .execute((target, project) -> {
                 // NOTE: rust uses its cache heavily, causing issues when doing batch builds across architectures
                 // its important we do a clean before we build
@@ -236,22 +236,11 @@ public class blaze {
             });
     }
 
-    public void test_shell() throws Exception {
-        new Buildx(crossTargets)
-            .setTags("build")
-            .execute((target, project) -> {
-                project.getSshSession().newExec()
-                    .command("/Users/builder/remote-build/shmemj/setup/test-exec.sh")
-                    .args("java", "-version")
-                    .run();
-            });
-    }
-
+    @Task(order=53)
     public void cross_tests() throws Exception {
         new Buildx(crossTargets)
-            .setTags("test")
+            .tags("test")
             .execute((target, project) -> {
-//                project.action("java", "-jar", "blaze.jar", "test").run();
                 project.action("java", "-jar", "blaze.jar", "test").run();
             });
     }
