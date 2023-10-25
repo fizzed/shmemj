@@ -10,10 +10,6 @@
         <version>0.0.2-SNAPSHOT</version>
     </parent>
 
-    <properties>
-        <maven.deploy.skip>true</maven.deploy.skip>
-    </properties>
-
     <dependencies>
 
         <dependency>
