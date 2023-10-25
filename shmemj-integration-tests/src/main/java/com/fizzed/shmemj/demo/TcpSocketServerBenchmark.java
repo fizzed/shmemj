@@ -10,8 +10,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 
-public class TcpSocketServerDemo {
-    static private final Logger log = LoggerFactory.getLogger(TcpSocketServerDemo.class);
+public class TcpSocketServerBenchmark {
+    static private final Logger log = LoggerFactory.getLogger(TcpSocketServerBenchmark.class);
 
     static public void main(String[] args) throws Exception {
         try (ServerSocket serverSocket = new ServerSocket(12244)) {

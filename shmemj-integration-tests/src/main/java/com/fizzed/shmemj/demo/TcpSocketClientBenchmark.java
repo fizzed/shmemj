@@ -9,8 +9,8 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 
-public class TcpSocketClientDemo {
-    static private final Logger log = LoggerFactory.getLogger(TcpSocketClientDemo.class);
+public class TcpSocketClientBenchmark {
+    static private final Logger log = LoggerFactory.getLogger(TcpSocketClientBenchmark.class);
 
     static public void main(String[] args) throws Exception {
 
