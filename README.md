@@ -2,6 +2,11 @@
 
 [![Maven Central](https://img.shields.io/maven-central/v/com.fizzed/shmemj?color=blue&style=flat-square)](https://mvnrepository.com/artifact/com.fizzed/shmemj)
 
+[![Java 11](https://img.shields.io/github/actions/workflow/status/fizzed/shmemj/java11.yaml?branch=master&label=Java%2011&style=flat-square)](https://github.com/fizzed/shmemj/actions/workflows/java11.yaml)
+[![Java 17](https://img.shields.io/github/actions/workflow/status/fizzed/shmemj/java17.yaml?branch=master&label=Java%2017&style=flat-square)](https://github.com/fizzed/shmemj/actions/workflows/java17.yaml)
+[![Java 19](https://img.shields.io/github/actions/workflow/status/fizzed/shmemj/java21.yaml?branch=master&label=Java%2021&style=flat-square)](https://github.com/fizzed/shmemj/actions/workflows/java21.yaml)
+
+
 [Fizzed, Inc.](http://fizzed.com) (Follow on Twitter: [@fizzed_inc](http://twitter.com/fizzed_inc))
 
 Access and use shared memory from the host operating system in Java 11+ on a wide variety of operating systems. Extremely
