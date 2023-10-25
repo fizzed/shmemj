@@ -4,7 +4,7 @@
 
 [Fizzed, Inc.](http://fizzed.com) (Follow on Twitter: [@fizzed_inc](http://twitter.com/fizzed_inc))
 
-Access and use shared memory from the host operating system in Java on a wide variety of operating systems. Extremely
+Access and use shared memory from the host operating system in Java 11+ on a wide variety of operating systems. Extremely
 fast and efficient method of IPC (interprocess communication) between Java-to-Java processes or even Java-to-other 
 processes written in different languages.
 
@@ -15,6 +15,7 @@ processes written in different languages.
  - Native binding for Java are written in Rust
  - Thorough unit tests along with automated testing across operating systems and versions
  - Sophisticated ```ShmemChannel``` which provides a socket-like interface for communicating between Java programs
+ - Supports Java 11+ (could support earlier versions but this lib uses the new process id utilities added in Java 9)
 
 ## Performance
 
