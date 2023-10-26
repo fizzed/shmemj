@@ -1,5 +1,6 @@
 import com.fizzed.blaze.Contexts;
 import com.fizzed.blaze.Task;
+import com.fizzed.blaze.core.Blaze;
 import com.fizzed.blaze.util.Globber;
 import com.fizzed.buildx.Buildx;
 import com.fizzed.buildx.ContainerBuilder;
