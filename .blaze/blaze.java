@@ -20,6 +20,7 @@ import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 
 public class blaze {
+
     final private Logger log = Contexts.logger();
 
     private final Path projectDir = withBaseDir("..").toAbsolutePath();
@@ -261,7 +262,7 @@ public class blaze {
     }
 
     @Task(order=54)
-    public void cross_markdown() throws Exception {
+    public void readme_markdown() throws Exception {
 
         System.out.println();
 
