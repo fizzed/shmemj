@@ -15,7 +15,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.fizzed.blaze.Contexts.withBaseDir;
+import static com.fizzed.blaze.Systems.cp;
 import static com.fizzed.blaze.Systems.exec;
+import static com.fizzed.blaze.util.Globber.globber;
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 
@@ -47,22 +49,20 @@ public class blaze {
         log.info("=================================================");
 
         log.info("Building native lib...");
+
         exec("cargo", "build", "--release", "--target="+rustTarget)
             .workingDir(rustProjectDir)
+            .verbose()
             .run();
 
-        for (String ext : asList(".so", ".dll", ".dylib")) {
-            for (Path f : Globber.globber(rustArtifactDir, "*"+ext).filesOnly().scan()) {
-                log.info("Copying {} -> {}", f, javaOutputDir);
-                Files.copy(f, javaOutputDir.resolve(f.getFileName()), StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
+        cp(globber(rustArtifactDir, "*.{so,dll,dylib}")).target(javaOutputDir).force().verbose().run();
     }
 
     @Task(order=20)
     public void clean_natives() throws Exception {
         exec("cargo", "clean")
             .workingDir(rustProjectDir)
+            .verbose()
             .run();
     }
 
@@ -70,6 +70,7 @@ public class blaze {
     public void test() throws Exception {
         exec("mvn", "clean", "test")
             .workingDir(projectDir)
+            .verbose()
             .run();
     }
 
