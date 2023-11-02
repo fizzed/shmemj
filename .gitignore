@@ -2,4 +2,4 @@
 target
 .idea
 .buildx
-.buildx-temp
+.buildx-cache

@@ -1,0 +1,5 @@
+src
+.buildx-cache
+shmemj-*
+.blaze
+native

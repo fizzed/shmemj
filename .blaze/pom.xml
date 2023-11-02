@@ -68,12 +68,12 @@
     <dependency>
       <groupId>com.fizzed</groupId>
       <artifactId>buildx</artifactId>
-      <version>RELEASE</version>
+      <version>1.0.7</version>
     </dependency>
     <dependency>
       <groupId>com.fizzed</groupId>
       <artifactId>jne</artifactId>
-      <version>RELEASE</version>
+      <version>4.0.4</version>
     </dependency>
   </dependencies>
 </project>

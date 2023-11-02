@@ -55,7 +55,11 @@ public class blaze {
             .verbose()
             .run();
 
-        cp(globber(rustArtifactDir, "*.{so,dll,dylib}")).target(javaOutputDir).force().verbose().run();
+        cp(globber(rustArtifactDir, "*.{so,dll,dylib}"))
+            .target(javaOutputDir)
+            .force()
+            .verbose()
+            .run();
     }
 
     @Task(order=20)
@@ -75,40 +79,41 @@ public class blaze {
     }
 
     private final List<Target> crossTargets = asList(
+
         //
-        // Linux GNU
+        // Linux
         //
 
-        new Target("linux", "x64", "built on ubuntu 16.04, glibc 2.23+")
+        new Target("linux", "x64", "x64 Ubuntu 16.04, JDK 11 cross compiler")
             .setTags("build", "test")
             .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-x64"),
 
-        new Target("linux", "arm64", "built on ubuntu 16.04, glibc 2.23+")
+        new Target("linux", "arm64", "x64 Ubuntu 16.04, JDK 11 cross compiler")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-arm64"),
 
         // riscv64 only on ubuntu18+
-        new Target("linux", "riscv64", "built on ubuntu 18.04, glibc 2.31+")
+        new Target("linux", "riscv64", "x64 Ubuntu 18.04, JDK 11 cross compiler")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu18-jdk11-buildx-linux-riscv64"),
 
-        new Target("linux", "armhf", "built on ubuntu 16.04, glibc 2.23+")
+        new Target("linux", "armhf", "x64 Ubuntu 16.04, JDK 11 cross compiler")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-armhf"),
 
-        new Target("linux", "armel", "built on ubuntu 16.04, glibc 2.23+")
+        new Target("linux", "armel", "x64 Ubuntu 16.04, JDK 11 cross compiler")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-armel"),
 
-        new Target("linux", "x32", "built on ubuntu 16.04, glibc 2.23+")
+        new Target("linux", "x32", "x64 Ubuntu 16.04, JDK 11 cross compiler")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux-x32"),
 
         //
-        // Linux MUSL
+        // Linux (w/ MUSL)
         //
 
-        new Target("linux_musl", "x64", "alpine 3.11+")
+        new Target("linux_musl", "x64", "x64 Ubuntu 16.04, JDK 11 cross compiler")
             .setTags("build")
             .setContainerImage("fizzed/buildx:x64-ubuntu16-jdk11-buildx-linux_musl-x64"),
 
@@ -116,11 +121,11 @@ public class blaze {
         // MacOS
         //
 
-        new Target("macos", "x64", "macos 10.13+")
+        new Target("macos", "x64", "MacOS 10.13")
             .setTags("build", "test")
             .setHost("bmh-build-x64-macos1013-1"),
 
-        new Target("macos", "arm64", "macos 11+")
+        new Target("macos", "arm64", "MacOS 11")
             .setTags("build")
             .setHost("bmh-build-x64-macos11-1"),
 
@@ -128,15 +133,15 @@ public class blaze {
         // Windows
         //
 
-        new Target("windows", "x64", "win 7+")
+        new Target("windows", "x64", "Windows 11")
             .setTags("build", "test")
             .setHost("bmh-build-x64-win11-1"),
 
-        new Target("windows", "x32", "win 7+")
+        new Target("windows", "x32", "Windows 11")
             .setTags("build")
             .setHost("bmh-build-x64-win11-1"),
 
-        new Target("windows", "arm64", "win 10+")
+        new Target("windows", "arm64", "Windows 11")
             .setTags("build")
             .setHost("bmh-build-x64-win11-1"),
 
@@ -144,7 +149,7 @@ public class blaze {
         // FreeBSD
         //
 
-        new Target("freebsd", "x64", "freebsd 12+")
+        new Target("freebsd", "x64", "FreeBSD 12")
             .setTags("build", "test")
             .setHost("bmh-build-x64-freebsd12-1"),
 
@@ -157,67 +162,91 @@ public class blaze {
             .setHost("bmh-build-x64-openbsd72-1"),*/
 
         //
-        // Testing Only
+        // CI/Test Local Machine
         //
 
         new Target(localNativeTarget.toJneOsAbi(), localNativeTarget.toJneArch(), "local machine")
             .setTags("test"),
 
-        new Target("linux", "x64", "ubuntu22.04, jdk11")
+        //
+        // CI/Test Linux
+        //
+
+        new Target("linux", "x64", "Ubuntu 22.04, JDK 11")
             .setTags("test")
             .setContainerImage("fizzed/buildx:x64-ubuntu22-jdk11"),
 
-        new Target("linux", "x64", "ubuntu22.04, jdk17")
+        new Target("linux", "x64", "Ubuntu 22.04, JDK 17")
             .setTags("test")
             .setContainerImage("fizzed/buildx:x64-ubuntu22-jdk17"),
 
-        new Target("linux", "x64", "ubuntu22.04, jdk21")
+        new Target("linux", "x64", "Ubuntu 22.04, JDK 21")
             .setTags("test")
             .setContainerImage("fizzed/buildx:x64-ubuntu22-jdk21"),
 
-        new Target("linux", "x32", "ubuntu16.04, jdk11")
+        new Target("linux", "x32", "Ubuntu 16.04, JDK 11")
             .setTags("test")
             .setContainerImage("fizzed/buildx:x32-ubuntu16-jdk11"),
 
-        new Target("linux", "arm64", "ubuntu16.04, jdk11")
+        new Target("linux", "arm64", "Ubuntu 16.04, JDK 11")
             .setTags("test")
+            .setHost("bmh-hv-6")
             .setContainerImage("fizzed/buildx:arm64-ubuntu16-jdk11"),
 
-        new Target("linux", "armhf", "ubuntu16.04, jdk11")
+        new Target("linux", "armhf", "Ubuntu 16.04, JDK 11")
             .setTags("test")
+            .setHost("bmh-hv-6")
             .setContainerImage("fizzed/buildx:armhf-ubuntu16-jdk11"),
 
-        new Target("linux", "armel", "debian11, jdk11")
+        new Target("linux", "armel", "Debian 11, JDK 11")
             .setTags("test")
+            .setHost("bmh-hv-6")
             .setContainerImage("fizzed/buildx:armel-debian11-jdk11"),
-
-        new Target("linux_musl", "x64", "alpine3.11, jdk11")
-            .setTags("test")
-            .setContainerImage("fizzed/buildx:x64-alpine3.11-jdk11"),
-
-        new Target("macos", "arm64", "macos12")
-            .setTags("test")
-            .setHost("bmh-build-arm64-macos12-1"),
-
-        new Target("windows", "x64", "win10")
-            .setTags("test")
-            .setHost("bmh-build-x64-win10-1"),
-
-        new Target("windows", "x64", "win7")
-            .setTags("test")
-            .setHost("bmh-build-x64-win7-1"),
-
-        new Target("windows", "arm64", "win11")
-            .setTags("test")
-            .setHost("bmh-build-arm64-win11-1"),
 
         new Target("linux", "riscv64", "debian11")
             .setTags("test")
             .setHost("bmh-build-riscv64-debian11-1"),
 
-        new Target("freebsd", "x64", "freebsd13")
+        //
+        // CI/Test Linux (w/ MUSL)
+        //
+
+        new Target("linux_musl", "x64", "Alpine 3.11, JDK 11")
             .setTags("test")
-            .setHost("bmh-build-x64-freebsd13-1")
+            .setContainerImage("fizzed/buildx:x64-alpine3.11-jdk11"),
+
+        //
+        // CI/Test MacOS
+        //
+
+        new Target("macos", "arm64", "MacOS 12")
+            .setTags("test")
+            .setHost("bmh-build-arm64-macos12-1"),
+
+        //
+        // CI/Test FreeBSD
+        //
+
+        new Target("freebsd", "x64", "FreeBSD 13")
+            .setTags("test")
+            .setHost("bmh-build-x64-freebsd13-1"),
+
+        //
+        // CI/Test Windows
+        //
+
+        new Target("windows", "x64", "Windows 10")
+            .setTags("test")
+            .setHost("bmh-build-x64-win10-1"),
+
+        new Target("windows", "x64", "Windows 7")
+            .setTags("test")
+            .setHost("bmh-build-x64-win7-1"),
+
+        new Target("windows", "arm64", "Windows 11")
+            .setTags("test")
+            .setHost("bmh-build-arm64-win11-1")
+
     );
 
     @Task(order=50)
