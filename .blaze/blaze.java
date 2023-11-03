@@ -1,30 +1,30 @@
+import com.fizzed.blaze.Config;
 import com.fizzed.blaze.Contexts;
 import com.fizzed.blaze.Task;
-import com.fizzed.blaze.core.Blaze;
-import com.fizzed.blaze.util.Globber;
 import com.fizzed.buildx.Buildx;
 import com.fizzed.buildx.ContainerBuilder;
 import com.fizzed.buildx.Target;
-import com.fizzed.jne.NativeTarget;
+import com.fizzed.jne.*;
 import org.slf4j.Logger;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static com.fizzed.blaze.Contexts.withBaseDir;
 import static com.fizzed.blaze.Systems.cp;
 import static com.fizzed.blaze.Systems.exec;
 import static com.fizzed.blaze.util.Globber.globber;
 import static java.util.Arrays.asList;
+import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toList;
 
 public class blaze {
 
     final private Logger log = Contexts.logger();
 
+    private final Config config = Contexts.config();
     private final Path projectDir = withBaseDir("..").toAbsolutePath();
     private final Path rustProjectDir = withBaseDir("../native").toAbsolutePath();
     private final NativeTarget localNativeTarget = NativeTarget.detect();
@@ -72,8 +72,26 @@ public class blaze {
 
     @Task(order=30)
     public void test() throws Exception {
+        final Integer jdkVersion = this.config.value("jdk.version", Integer.class).orNull();
+        final HardwareArchitecture jdkArch = ofNullable(this.config.value("jdk.arch").orNull())
+            .map(HardwareArchitecture::resolve)
+            .orElse(null);
+
+        final long start = System.currentTimeMillis();
+        final JavaHome jdkHome = new JavaHomeFinder()
+            .jdk()
+            .version(jdkVersion)
+            .hardwareArchitecture(jdkArch)
+            .preferredDistributions()
+            .find();
+
+        log.info("");
+        log.info("Detected {} (in {} ms)", jdkHome, (System.currentTimeMillis()-start));
+        log.info("");
+
         exec("mvn", "clean", "test")
             .workingDir(projectDir)
+            .env("JAVA_HOME", jdkHome.getDirectory().toString())
             .verbose()
             .run();
     }
@@ -157,9 +175,9 @@ public class blaze {
         // OpenBSD (will not compile due to pthread usage)
         //
 
-        /*new Target("openbsd", "x64", "openbsd7.2")
-            .setTags("build", "test")
-            .setHost("bmh-build-x64-openbsd72-1"),*/
+        new Target("openbsd", "x64", "openbsd7.2")
+            .setTags("extended-test")
+            .setHost("bmh-build-x64-openbsd72-1"),
 
         //
         // CI/Test Local Machine
