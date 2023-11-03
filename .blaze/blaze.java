@@ -78,12 +78,17 @@ public class blaze {
             .orElse(null);
 
         final long start = System.currentTimeMillis();
-        final JavaHome jdkHome = new JavaHomeFinder()
-            .jdk()
-            .version(jdkVersion)
-            .hardwareArchitecture(jdkArch)
-            .preferredDistributions()
-            .find();
+        final JavaHome jdkHome;
+        if (jdkVersion != null || jdkArch != null) {
+            jdkHome = new JavaHomeFinder()
+                .jdk()
+                .version(jdkVersion)
+                .hardwareArchitecture(jdkArch)
+                .preferredDistributions()
+                .find();
+        } else {
+            jdkHome = JavaHome.current();
+        }
 
         log.info("");
         log.info("Detected {} (in {} ms)", jdkHome, (System.currentTimeMillis()-start));
