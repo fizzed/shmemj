@@ -78,17 +78,13 @@ public class blaze {
             .orElse(null);
 
         final long start = System.currentTimeMillis();
-        final JavaHome jdkHome;
-        if (jdkVersion != null || jdkArch != null) {
-            jdkHome = new JavaHomeFinder()
-                .jdk()
-                .version(jdkVersion)
-                .hardwareArchitecture(jdkArch)
-                .preferredDistributions()
-                .find();
-        } else {
-            jdkHome = JavaHome.current();
-        }
+        final JavaHome jdkHome = new JavaHomeFinder()
+            .jdk()
+            .version(jdkVersion)
+            .hardwareArchitecture(jdkArch)
+            .preferredDistributions()
+            .sorted(jdkVersion != null || jdkArch != null)  // sort if any criteria provided
+            .find();
 
         log.info("");
         log.info("Detected {} (in {} ms)", jdkHome, (System.currentTimeMillis()-start));
@@ -258,6 +254,10 @@ public class blaze {
         // CI/Test Windows
         //
 
+        new Target("windows", "x32", "Windows 11")
+            .setTags("test")
+            .setHost("bmh-build-x64-win11-1"),
+
         new Target("windows", "x64", "Windows 10")
             .setTags("test")
             .setHost("bmh-build-x64-win10-1"),
@@ -310,7 +310,9 @@ public class blaze {
         new Buildx(crossTargets)
             .tags("test")
             .execute((target, project) -> {
-                project.action("java", "-jar", "blaze.jar", "test").run();
+                project.action("java", "-jar", "blaze.jar", "test", "--jdk.arch", target.getArch())
+                    .verbose()
+                    .run();
             });
     }
 
