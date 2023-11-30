@@ -6,14 +6,11 @@
 [![Java 17](https://img.shields.io/github/actions/workflow/status/fizzed/shmemj/java17.yaml?branch=master&label=Java%2017&style=flat-square)](https://github.com/fizzed/shmemj/actions/workflows/java17.yaml)
 [![Java 19](https://img.shields.io/github/actions/workflow/status/fizzed/shmemj/java21.yaml?branch=master&label=Java%2021&style=flat-square)](https://github.com/fizzed/shmemj/actions/workflows/java21.yaml)
 
-
-[Fizzed, Inc.](http://fizzed.com) (Follow on Twitter: [@fizzed_inc](http://twitter.com/fizzed_inc))
+## Overview
 
 Access and use shared memory from the host operating system in Java 11+ on a wide variety of operating systems. Extremely
 fast and efficient method of IPC (interprocess communication) between Java-to-Java processes or even Java-to-other 
 processes written in different languages.
-
-## Features
 
  - Lightweight wrappers around shared memory APIs in an OS agnostic way
  - Lightweight wrapper around OS synchronization primitives including conditions with lock and atomic variable implementations
@@ -21,6 +18,22 @@ processes written in different languages.
  - Thorough unit tests along with automated testing across operating systems and versions
  - Sophisticated ```ShmemChannel``` which provides a socket-like interface for communicating between Java programs
  - Supports Java 11+ (could support earlier versions but this lib uses the new process id utilities added in Java 9)
+
+## Sponsorship & Support
+
+![](https://cdn.fizzed.com/github/fizzed-logo-100.png)
+
+Project by [Fizzed, Inc.](http://fizzed.com) (Follow on Twitter: [@fizzed_inc](http://twitter.com/fizzed_inc))
+
+**Developing and maintaining opensource projects requires significant time.** If you find this project useful or need
+commercial support, we'd love to chat. Drop us an email at [ping@fizzed.com](mailto:ping@fizzed.com)
+
+Project sponsors may include the following benefits:
+
+- Priority support (outside of Github)
+- Feature development & roadmap
+- Priority bug fixes
+- Privately hosted continuous integration tests for their unique edge or use cases
 
 ## Performance
 
